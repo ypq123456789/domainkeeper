@@ -19,6 +19,10 @@
 - 前端：HTML5, CSS3, JavaScript
 - 部署：Cloudflare Workers
 
+## demo
+![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/546d0a4c-a74b-436c-a42e-1b013ff6e62b)
+
+
 ## 快速部署
 
    - 登录您的Cloudflare账户
@@ -34,8 +38,8 @@
 
 ## 个性化定制
 
-- 修改 `CUSTOM_TITLE` 变量来自定义面板标题
-- 调整CSS样式以匹配您的个人偏好
+- 建议您绑定自定义域，以确保您的网站不会被墙
+- 可修改 `CUSTOM_TITLE` 变量，从而自定义面板标题
 
 ## 贡献指南
 
