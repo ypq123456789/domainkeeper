@@ -23,8 +23,7 @@
 
    - 登录您的Cloudflare账户
    - 创建新的Worker
-   - 将 `index.js` 的内容复制到Worker编辑器
-   - 2. 在 `index.js` 文件中编辑 `DOMAINS` 数组，添加您的域名信息：
+   - 将 `index.js` 的内容复制到Worker编辑器，在 `index.js` 文件中编辑 `DOMAINS` 数组，添加您的域名信息：
    ```javascript
    const DOMAINS = [
      { domain: "example.com", registrationDate: "2022-01-01", expirationDate: "2027-01-01", system: "Cloudflare" },
@@ -36,7 +35,7 @@
 ## 个性化定制
 
 - 修改 `CUSTOM_TITLE` 变量来自定义面板标题
-- 调整CSS样式以匹配您的个人或品牌偏好
+- 调整CSS样式以匹配您的个人偏好
 
 ## 贡献指南
 
