@@ -70,7 +70,7 @@ https://demo.bacon159.me/
 
 **CF_API_KEY的获取方式**： 登录自己的cloudflare账号，打开https://dash.cloudflare.com/profile 点击API令牌，创建令牌，读取所有资源-使用模板，继续以显示摘要，创建令牌，复制此令牌，**保存到记事本，之后不会再显示！**
 
-**WHOIS_PROXY_URL的获取方式**：需要你自建，详见[whois-proxy](https://github.com/ypq123456789/whois-proxy)。
+**WHOIS_PROXY_URL的获取方式**：需要你自建，详见[whois-proxy](https://github.com/ypq123456789/whois-proxy)。假如你的api请求地址是http(s)://你的ip或者域名/whois 那么这里你只需要填入http(s)://你的ip或者域名。
 
 前台密码按需设置，**后台密码必须设置。**
 
