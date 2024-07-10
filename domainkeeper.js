@@ -1,20 +1,20 @@
 // 在文件顶部添加版本信息
-const VERSION = "1.5.2";
+const VERSION = "1.5.3";
 
 // 自定义标题
 const CUSTOM_TITLE = "我的域名管理";
 
 // 在这里设置你的 Cloudflare API Token
-const CF_API_KEY = "";
+const CF_API_KEY = "naOtsu1NmO4HOtPUS2fSBIfKLpOt3j3U08xB7wtq";
 
 // 自建 WHOIS 代理服务地址
-const WHOIS_PROXY_URL = "";
+const WHOIS_PROXY_URL = "http://whois.bacon159.me";
 
 // 访问密码（可为空）
-const ACCESS_PASSWORD = "";
+const ACCESS_PASSWORD = "ypq123456";
 
 // 后台密码（不可为空）
-const ADMIN_PASSWORD = "";
+const ADMIN_PASSWORD = "ypq123456789";
 
 // KV 命名空间绑定名称
 const KV_NAMESPACE = DOMAIN_INFO;
@@ -160,8 +160,14 @@ async function handleFrontend(request) {
     return Response.redirect(`${new URL(request.url).origin}/login`, 302);
   }
 
+  console.log("Fetching Cloudflare domains info...");
   const domains = await fetchCloudflareDomainsInfo();
+  console.log("Cloudflare domains:", domains);
+
+  console.log("Fetching domain info...");
   const domainsWithInfo = await fetchDomainInfo(domains);
+  console.log("Domains with info:", domainsWithInfo);
+
   return new Response(generateHTML(domainsWithInfo, false), {
     headers: { 'Content-Type': 'text/html' },
   });
@@ -544,8 +550,13 @@ function getStatusTitle(daysRemaining) {
 
 function generateHTML(domains, isAdmin) {
   const categorizedDomains = categorizeDomains(domains);
-  
+    
+  console.log("Categorized domains:", categorizedDomains); // 添加这行日志
   const generateTable = (domainList, isCFTopLevel) => {
+    if (!domainList || !Array.isArray(domainList)) {
+      console.error('Invalid domainList:', domainList);
+      return ''; // 返回空字符串而不是尝试处理无效数据
+    }
     return domainList.map(info => {
       const today = new Date();
       const expirationDate = new Date(info.expirationDate);
@@ -607,7 +618,73 @@ function generateHTML(domains, isAdmin) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</title>
     <style>
-      /* 保持原有的样式 */
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+  }
+  h1 {
+      text-align: center;
+  }
+  .nav {
+      text-align: right;
+      margin-bottom: 20px;
+  }
+  table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+  th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+  }
+  th {
+      background-color: #f8f8f8;
+      font-weight: bold;
+  }
+  tr:hover {
+      background-color: #f5f5f5;
+  }
+  .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+  }
+  .status-active { background-color: #4CAF50; }
+  .status-warning { background-color: #FFC107; }
+  .progress-bar {
+      background-color: #e0e0e0;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+  }
+  .progress {
+      background-color: #4CAF50;
+      height: 100%;
+  }
+  .btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 5px;
+  }
+  .btn-primary { background-color: #4CAF50; color: white; }
+  .btn-secondary { background-color: #2196F3; color: white; }
+  footer {
+      text-align: center;
+      margin-top: 30px;
+      color: #777;
+  }
     </style>
   </head>
   <body>
@@ -712,16 +789,7 @@ function generateHTML(domains, isAdmin) {
     </script>
     ` : ''}
     </body> </html> `; }
-    function categorizeDomains(domains) {
-    return domains.reduce((acc, domain) => {
-    if (domain.system === 'Cloudflare' && domain.domain.split('.').length === 2) {
-    acc.cfTopLevel.push(domain);
-    } else {
-    acc.cfSecondLevelAndCustom.push(domain);
-    }
-    return acc;
-    }, { cfTopLevel: [], cfSecondLevelAndCustom: [] });
-    }
+
 
 function getStatusColor(daysRemaining) {
   if (isNaN(daysRemaining)) return '#808080'; // 灰色表示未知状态
@@ -740,13 +808,17 @@ function getStatusTitle(daysRemaining) {
 }
 
 function categorizeDomains(domains) {
+  if (!domains || !Array.isArray(domains)) {
+    console.error('Invalid domains input:', domains);
+    return { cfTopLevel: [], cfSecondLevelAndCustom: [] };
+  }
+
   return domains.reduce((acc, domain) => {
-    const parts = domain.domain.split('.');
-    if (parts.length === 2) {
-      acc.topLevel.push(domain);
+    if (domain.system === 'Cloudflare' && domain.domain.split('.').length === 2) {
+      acc.cfTopLevel.push(domain);
     } else {
-      acc.secondLevel.push(domain);
+      acc.cfSecondLevelAndCustom.push(domain);
     }
     return acc;
-  }, { topLevel: [], secondLevel: [] });
+  }, { cfTopLevel: [], cfSecondLevelAndCustom: [] });
 }
