@@ -74,9 +74,6 @@ https://demo.bacon159.me/
 
 前台密码按需设置，**后台密码必须设置。**
 
-你也可以在环境变量中配置这些值，这样更加安全。
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/5e3702dd-97e6-477e-9140-e2a6eca1f1fd)
-
 5. 创建一个 KV 命名空间，命名为`DOMAIN_INFO`，并将其绑定到 Worker，绑定名称为 `DOMAIN_INFO`
 ![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/6d97b4c4-3cfe-4b1f-9423-000348498f8e)
 ![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/ff4601b0-5787-4152-ae96-1e79e0e4d817)
