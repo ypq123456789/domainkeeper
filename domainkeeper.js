@@ -1,3 +1,9 @@
+
+=======
+// 在文件顶部添加版本信息
+const VERSION = "1.5.1";
+
+
 // 自定义标题
 const CUSTOM_TITLE = "我的域名管理";
 
@@ -174,7 +180,11 @@ async function handleApiUpdate(request) {
     };
 
     // 保存更新后的信息
+<<<<<<< HEAD
     await KV_NAMESPACE.put(domain, JSON.stringify(domainInfo));
+=======
+    await cacheWhoisInfo(domain, domainInfo);
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
@@ -215,10 +225,16 @@ async function fetchCloudflareDomainsInfo() {
 async function fetchDomainInfo(domains) {
   const result = [];
   for (const domain of domains) {
+<<<<<<< HEAD
+=======
+    let domainInfo = { ...domain };
+
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
     if (domain.domain.split('.').length === 2) {
       // 顶级域名
       const cachedInfo = await getCachedWhoisInfo(domain.domain);
       if (cachedInfo) {
+<<<<<<< HEAD
         result.push({ ...domain, ...cachedInfo });
       } else {
         const whoisInfo = await fetchWhoisInfo(domain.domain);
@@ -229,11 +245,64 @@ async function fetchDomainInfo(domains) {
       // 二级域名
       const storedInfo = await KV_NAMESPACE.get(domain.domain, 'json');
       result.push({ ...domain, ...storedInfo });
+=======
+        domainInfo = { ...domainInfo, ...cachedInfo };
+      } else if (WHOIS_PROXY_URL) {
+        try {
+          const whoisInfo = await fetchWhoisInfo(domain.domain);
+          domainInfo = { ...domainInfo, ...whoisInfo };
+          if (!whoisInfo.whoisError) {
+            await cacheWhoisInfo(domain.domain, whoisInfo);
+          }
+        } catch (error) {
+          console.error(`Error fetching WHOIS info for ${domain.domain}:`, error);
+          domainInfo.whoisError = error.message;
+        }
+      }
+    } else {
+      // 二级域名
+      // 对于二级域名，我们只使用从 Cloudflare 获取的信息
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
     }
   }
   return result;
 }
 
+<<<<<<< HEAD
+=======
+async function handleWhoisRequest(domain) {
+  console.log(`Handling WHOIS request for domain: ${domain}`);
+
+  try {
+    console.log(`Fetching WHOIS data from: ${WHOIS_PROXY_URL}/whois/${domain}`);
+    const response = await fetch(`${WHOIS_PROXY_URL}/whois/${domain}`);
+    
+    if (!response.ok) {
+      throw new Error(`WHOIS API responded with status: ${response.status}`);
+    }
+    
+    const whoisData = await response.json();
+    console.log(`Received WHOIS data:`, whoisData);
+    
+    return new Response(JSON.stringify({
+      error: false,
+      rawData: whoisData.rawData
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error(`Error fetching WHOIS data for ${domain}:`, error);
+    return new Response(JSON.stringify({
+      error: true,
+      message: `Failed to fetch WHOIS data for ${domain}. Error: ${error.message}`
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
 async function fetchWhoisInfo(domain) {
   try {
     const response = await fetch(`${WHOIS_PROXY_URL}/whois/${domain}`);
@@ -266,12 +335,20 @@ async function getCachedWhoisInfo(domain) {
   return null;
 }
 
+<<<<<<< HEAD
 async function cacheWhoisInfo(domain, data) {
   const cacheKey = `whois_${domain}`;
   await KV_NAMESPACE.put(cacheKey, JSON.stringify({
     data,
     timestamp: Date.now()
   }));
+=======
+
+async function cacheWhoisInfo(domain, whoisInfo) {
+  if (whoisInfo && whoisInfo.registrar && whoisInfo.creationDate && whoisInfo.expirationDate) {
+    await redisClient.set(`whois:${domain}`, JSON.stringify(whoisInfo), 'EX', 86400); // 缓存24小时
+  }
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
 }
 
 function generateLoginHTML(title, action, errorMessage = "") {
@@ -630,6 +707,30 @@ function generateHTML(domains, isAdmin) {
   `;
 }
 
+<<<<<<< HEAD
+=======
+
+
+
+
+
+function getStatusColor(daysRemaining) {
+  if (isNaN(daysRemaining)) return '#808080'; // 灰色表示未知状态
+  if (daysRemaining <= 7) return '#ff0000'; // 红色
+  if (daysRemaining <= 30) return '#ffa500'; // 橙色
+  if (daysRemaining <= 90) return '#ffff00'; // 黄色
+  return '#00ff00'; // 绿色
+}
+
+function getStatusTitle(daysRemaining) {
+  if (isNaN(daysRemaining)) return '未知状态';
+  if (daysRemaining <= 7) return '紧急';
+  if (daysRemaining <= 30) return '警告';
+  if (daysRemaining <= 90) return '注意';
+  return '正常';
+}
+
+>>>>>>> parent of ba7e7c6 (Update domainkeeper.js)
 function categorizeDomains(domains) {
   const topLevel = [];
   const secondLevel = [];
