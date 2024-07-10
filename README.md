@@ -81,8 +81,9 @@ https://demo.bacon159.me/
 6. 保存并部署
 
 ## demo
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/a8ce8607-d56d-4556-a937-db19f8fa504a)
-https://domainkeeper.bacon159.me/
+![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/5eeb8f1a-b802-4dd5-ad99-42b61cd91608)
+https://domainkeeper.bacon159.me/ 
+前台密码ypq123456
 
 # 其他
 ## 贡献指南
