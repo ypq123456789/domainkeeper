@@ -5,16 +5,16 @@ const VERSION = "1.5.3";
 const CUSTOM_TITLE = "我的域名管理";
 
 // 在这里设置你的 Cloudflare API Token
-const CF_API_KEY = "naOtsu1NmO4HOtPUS2fSBIfKLpOt3j3U08xB7wtq";
+const CF_API_KEY = "";
 
 // 自建 WHOIS 代理服务地址
-const WHOIS_PROXY_URL = "http://whois.bacon159.me";
+const WHOIS_PROXY_URL = "";
 
 // 访问密码（可为空）
-const ACCESS_PASSWORD = "ypq123456";
+const ACCESS_PASSWORD = "";
 
 // 后台密码（不可为空）
-const ADMIN_PASSWORD = "ypq123456789";
+const ADMIN_PASSWORD = "";
 
 // KV 命名空间绑定名称
 const KV_NAMESPACE = DOMAIN_INFO;
