@@ -1,5 +1,5 @@
-// 在文件顶部添加版本信息
-const VERSION = "1.6.1";
+// 在文件顶部添加版本信息后台密码（不可为空）
+const VERSION = "1.6.8";
 
 // 自定义标题
 const CUSTOM_TITLE = "我的域名管理";
@@ -263,7 +263,7 @@ async function handleApiUpdate(request) {
 
   try {
     const data = await request.json();
-    const { action, domain, registrar, registrationDate, expirationDate } = data;
+    const { action, domain, system, registrar, registrationDate, expirationDate } = data;
 
     if (action === 'delete') {
       // 删除自定义域名
@@ -272,8 +272,19 @@ async function handleApiUpdate(request) {
       // 更新 WHOIS 信息
       const whoisInfo = await fetchWhoisInfo(domain);
       await cacheWhoisInfo(domain, whoisInfo);
+    } else if (action === 'add') {
+      // 添加新域名
+      const newDomainInfo = {
+        domain,
+        system,
+        registrar,
+        registrationDate,
+        expirationDate,
+        isCustom: true
+      };
+      await cacheWhoisInfo(domain, newDomainInfo);
     } else {
-      // 更新或添加域名信息
+      // 更新域名信息
       let domainInfo = await getCachedWhoisInfo(domain) || {};
       domainInfo = {
         ...domainInfo,
@@ -289,6 +300,7 @@ async function handleApiUpdate(request) {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
+    console.error('Error in handleApiUpdate:', error);
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -329,19 +341,33 @@ async function fetchDomainInfo(domains) {
   const allDomainKeys = await KV_NAMESPACE.list({ prefix: 'whois_' });
   const allDomains = await Promise.all(allDomainKeys.keys.map(async (key) => {
     const value = await KV_NAMESPACE.get(key.name);
-    return JSON.parse(value).data;
+    if (value) {
+      try {
+        const parsedValue = JSON.parse(value);
+        return parsedValue.data;
+      } catch (error) {
+        console.error(`Error parsing data for ${key.name}:`, error);
+        return null;
+      }
+    }
+    return null;
   }));
 
+  // 过滤掉无效的域名数据
+  const validAllDomains = allDomains.filter(d => d && d.isCustom);
+
   // 合并 Cloudflare 域名和自定义域名
-  const mergedDomains = [...domains, ...allDomains.filter(d => d.isCustom)];
+  const mergedDomains = [...domains, ...validAllDomains];
   
   for (const domain of mergedDomains) {
+    if (!domain) continue; // 跳过无效的域名数据
+
     let domainInfo = { ...domain };
 
     const cachedInfo = await getCachedWhoisInfo(domain.domain || domain);
     if (cachedInfo) {
       domainInfo = { ...domainInfo, ...cachedInfo };
-    } else if (!domainInfo.isCustom && domainInfo.domain.split('.').length === 2 && WHOIS_PROXY_URL) {
+    } else if (!domainInfo.isCustom && domainInfo.domain && domainInfo.domain.split('.').length === 2 && WHOIS_PROXY_URL) {
       try {
         const whoisInfo = await fetchWhoisInfo(domainInfo.domain);
         domainInfo = { ...domainInfo, ...whoisInfo };
@@ -358,7 +384,6 @@ async function fetchDomainInfo(domains) {
   }
   return result;
 }
-
 
 
 async function handleWhoisRequest(domain) {
@@ -477,7 +502,7 @@ function generateLoginHTML(title, action, errorMessage = "") {
       background-color: #f4f4f4;
     }
     .container {
-      max-width: 1200px;
+      max-width: 1600px;
       width: 100%;
       margin: 0 auto;
       background-color: #fff;
@@ -488,48 +513,74 @@ function generateLoginHTML(title, action, errorMessage = "") {
     }
     .table-wrapper {
       overflow-x: auto;
+      width: 100%;
     }
     
     table {
       width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-      table-layout: fixed;
+      table-layout: auto;
     }
-    
+
+    thead {
+      position: sticky;
+      top: 0;
+      background-color: #f2f2f2;
+      z-index: 1;
+    }
+
     th, td {
-      padding: 8px;
-      text-align: left;
-      border-bottom: 1px solid #ddd;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      padding: 8px;
     }
     
-    .status-column { width: 30px; }
-    .domain-column { width: 15%; }
-    .system-column { width: 10%; }
-    .registrar-column { width: 15%; }
-    .date-column { width: 10%; }
-    .days-column { width: 8%; }
-    .progress-column { width: 15%; }
-    .operation-column { width: 17%; }
+    .status-column { width: 30px; min-width: 30px; max-width: 50px; }
+    .domain-column { max-width: 200px; }
+    .system-column, .registrar-column { max-width: 150px; }
+    .date-column { max-width: 100px; }
+    .days-column { max-width: 80px; }
+    .progress-column { max-width: 150px; }
+    .operation-column { max-width: 200px; }
     
     @media (max-width: 768px) {
+      .container {
+        padding: 0 10px;
+      }
+    
       table {
         table-layout: auto;
+        font-size: 12px;
       }
       
+      th, td {
+        padding: 6px;
+      }
+    
       .system-column, .registrar-column {
         display: none;
       }
       
-      .domain-column { width: auto; }
-      .date-column { width: auto; }
-      .days-column { width: auto; }
-      .progress-column { width: auto; }
-      .operation-column { width: auto; }
+      .domain-column, 
+      .date-column, 
+      .days-column, 
+      .progress-column, 
+      .operation-column { 
+        width: auto; 
+      }
+    
+      button {
+        padding: 3px 6px;
+        font-size: 12px;
+      }
     }
+    
+    @media (min-width: 1921px) {
+      .container {
+        max-width: 1800px;
+      }
+    }
+
     .status-dot {
       display: inline-block;
       width: 10px;
@@ -661,13 +712,24 @@ function generateHTML(domains, isAdmin) {
       background-color: #f4f4f4;
     }
     .container {
-      max-width: 1200px;
       margin: 0 auto;
       padding: 0 15px;
     }
-  
+
+    .container {
+    padding-bottom: 60px; /* 根据页脚高度调整 */
+    }
+
+    footer {
+      position: relative;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
     .table-wrapper {
-      margin-bottom: 30px;
+      width: 100%;
+      overflow-x: auto;
     }
   
     h2.table-title {
@@ -730,6 +792,13 @@ function generateHTML(domains, isAdmin) {
       margin: 2px;
       cursor: pointer;
     }
+    .section-header {
+      background-color: #e9ecef;
+      font-weight: bold;
+    }
+    .section-header td {
+      padding: 10px;
+    }
     @media (max-width: 768px) {
       table {
         font-size: 12px;
@@ -746,6 +815,9 @@ function generateHTML(domains, isAdmin) {
       button {
         padding: 3px 6px;
         font-size: 12px;
+      }
+      .less-important-column {
+        display: none;
       }
     }
   </style>
