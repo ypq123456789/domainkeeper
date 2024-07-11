@@ -1,5 +1,5 @@
 // 在文件顶部添加版本信息
-const VERSION = "1.5.9";
+const VERSION = "1.6.1";
 
 // 自定义标题
 const CUSTOM_TITLE = "我的域名管理";
@@ -662,16 +662,26 @@ function generateHTML(domains, isAdmin) {
     }
     .container {
       max-width: 1200px;
-      width: 100%;
       margin: 0 auto;
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 5px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      margin-bottom: 60px;
+      padding: 0 15px;
     }
+  
     .table-wrapper {
-      overflow-x: auto;
+      margin-bottom: 30px;
+    }
+  
+    h2.table-title {
+      font-size: 1.5em;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #ddd;
+    }
+  
+    .table-separator {
+      height: 2px;
+      background-color: #eee;
+      margin: 30px 0;
     }
     table {
       width: 100%;
@@ -739,51 +749,37 @@ function generateHTML(domains, isAdmin) {
       }
     }
   </style>
-</head>
-<body>
-  <div class="container">
-      <h1>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</h1>
-      <div class="admin-link">${adminLink}</div>
-
-      <h2>CF顶级域名</h2>
-      <table>
-        <thead>
-          <tr>
-            <th class="status-column">状态</th>
-            <th class="domain-column">域名</th>
-            <th class="system-column">系统</th>
-            <th class="registrar-column">注册商</th>
-            <th class="date-column">注册日期</th>
-            <th class="date-column">到期日期</th>
-            <th class="days-column">剩余天数</th>
-            <th class="progress-column">进度</th>
-            ${isAdmin ? '<th class="operation-column">操作</th>' : ''}
-          </tr>
-        </thead>
-        <tbody>
-          ${cfTopLevelTable}
-        </tbody>
-      </table>
-
-      <h2>CF二级域名or自定义域名</h2>
-      <table>
-        <thead>
-          <tr>
-            <th class="status-column">状态</th>
-            <th class="domain-column">域名</th>
-            <th class="system-column">系统</th>
-            <th class="registrar-column">注册商</th>
-            <th class="date-column">注册日期</th>
-            <th class="date-column">到期日期</th>
-            <th class="days-column">剩余天数</th>
-            <th class="progress-column">进度</th>
-            ${isAdmin ? '<th class="operation-column">操作</th>' : ''}
-          </tr>
-        </thead>
-        <tbody>
-          ${cfSecondLevelAndCustomTable}
-        </tbody>
-      </table>
+  </head>
+  <body>
+    <div class="container">
+        <h1>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</h1>
+        <div class="admin-link">${adminLink}</div>
+  
+        <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="status-column">状态</th>
+              <th class="domain-column">域名</th>
+              <th class="system-column">系统</th>
+              <th class="registrar-column">注册商</th>
+              <th class="date-column">注册日期</th>
+              <th class="date-column">到期日期</th>
+              <th class="days-column">剩余天数</th>
+              <th class="progress-column">进度</th>
+              ${isAdmin ? '<th class="operation-column">操作</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="section-header"><td colspan="${isAdmin ? '9' : '8'}"><h2>CF顶级域名</h2></td></tr>
+            ${cfTopLevelTable}
+            <tr class="section-separator"><td colspan="${isAdmin ? '9' : '8'}"></td></tr>
+            <tr class="section-header"><td colspan="${isAdmin ? '9' : '8'}"><h2>CF二级域名or自定义域名</h2></td></tr>
+            ${cfSecondLevelAndCustomTable}
+          </tbody>
+        </table>
+      </div>
+  
       ${isAdmin ? `
         <div>
           <h2>添加CF二级域名or自定义域名</h2>
@@ -799,6 +795,7 @@ function generateHTML(domains, isAdmin) {
       ` : ''}
     </div>
     <script>
+  
 
     async function editDomain(domain, button) {
       const row = button.closest('tr');
