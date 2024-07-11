@@ -23,7 +23,7 @@
 - **通过 Cloudflare API 自动获取域名列表**
 - **集成自建 WHOIS 代理服务，自动获取顶级域名信息、二级域名的注册日期**
 - **支持手动编辑二级域名信息**
-- **不支持输入自定义域名**
+- **支持输入自定义域名**
 
 ## 技术实现
 - 前端：HTML5, CSS3, JavaScript
@@ -34,7 +34,7 @@
 - 可修改 `CUSTOM_TITLE` 变量来自定义面板标题
 - 可以绑定自定义域名到 Worker，以提高访问稳定性
 
-# DomainKeeper - 初级版本，只能自定义输入，更灵活，但不高效
+# DomainKeeper - 初级版本，只能自定义输入，更灵活，但不高效，适用于少数域名
 
 ## 快速部署
 
@@ -53,7 +53,7 @@
 ![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/546d0a4c-a74b-436c-a42e-1b013ff6e62b)
 https://demo.bacon159.me/
 
-# DomainKeeper - 高级版本，集成cloudflare的域名信息获取和whois查询功能，大大提升了域名管理的效率和便捷性，但是不支持自定义输入
+# DomainKeeper - 高级版本，集成cloudflare的域名信息获取和whois查询功能，大大提升了域名管理的效率和便捷性
 
 ## 快速部署
 
