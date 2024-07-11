@@ -1,5 +1,5 @@
 // 在文件顶部添加版本信息
-const VERSION = "1.5.3";
+const VERSION = "1.5.9";
 
 // 自定义标题
 const CUSTOM_TITLE = "我的域名管理";
@@ -265,22 +265,15 @@ async function handleApiUpdate(request) {
     const data = await request.json();
     const { action, domain, registrar, registrationDate, expirationDate } = data;
 
-    if (action === 'add' || action === 'edit') {
-      // 添加或编辑自定义域名
-      const domainInfo = { 
-        domain, 
-        registrar, 
-        registrationDate, 
-        expirationDate, 
-        isCustom: true,
-        system: 'Custom'
-      };
-      await cacheWhoisInfo(domain, domainInfo);
-    } else if (action === 'delete') {
+    if (action === 'delete') {
       // 删除自定义域名
       await KV_NAMESPACE.delete(`whois_${domain}`);
+    } else if (action === 'update-whois') {
+      // 更新 WHOIS 信息
+      const whoisInfo = await fetchWhoisInfo(domain);
+      await cacheWhoisInfo(domain, whoisInfo);
     } else {
-      // 更新现有域名信息
+      // 更新或添加域名信息
       let domainInfo = await getCachedWhoisInfo(domain) || {};
       domainInfo = {
         ...domainInfo,
@@ -476,48 +469,90 @@ function generateLoginHTML(title, action, errorMessage = "") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title} - ${CUSTOM_TITLE}</title>
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 60px;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      table-layout: fixed;
+    }
+    
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .status-column { width: 30px; }
+    .domain-column { width: 15%; }
+    .system-column { width: 10%; }
+    .registrar-column { width: 15%; }
+    .date-column { width: 10%; }
+    .days-column { width: 8%; }
+    .progress-column { width: 15%; }
+    .operation-column { width: 17%; }
+    
+    @media (max-width: 768px) {
+      table {
+        table-layout: auto;
       }
-      .login-container {
-        background-color: white;
-        padding: 2rem;
-        border-radius: 5px;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        text-align: center;
+      
+      .system-column, .registrar-column {
+        display: none;
       }
-      h1 {
-        color: #2c3e50;
-        margin-bottom: 1rem;
-      }
-      input[type="password"] {
-        width: 100%;
-        padding: 0.5rem;
-        margin-bottom: 1rem;
-        border: 1px solid #ddd;
-        border-radius: 3px;
-      }
-      input[type="submit"] {
-        background-color: #3498db;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 3px;
-        cursor: pointer;
-      }
-      input[type="submit"]:hover {
-        background-color: #2980b9;
-      }
-      .error-message {
-        color: red;
-        margin-bottom: 1rem;
-      }
+      
+      .domain-column { width: auto; }
+      .date-column { width: auto; }
+      .days-column { width: auto; }
+      .progress-column { width: auto; }
+      .operation-column { width: auto; }
+    }
+    .status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .progress-bar {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .progress {
+      height: 20px;
+      background-color: #4CAF50;
+      transition: width 0.5s ease-in-out;
+    }
+    button {
+      padding: 5px 10px;
+      margin: 2px;
+      cursor: pointer;
+    }
+    
     </style>
   </head>
   <body>
@@ -551,11 +586,11 @@ function getStatusTitle(daysRemaining) {
 function generateHTML(domains, isAdmin) {
   const categorizedDomains = categorizeDomains(domains);
     
-  console.log("Categorized domains:", categorizedDomains); // 添加这行日志
+  console.log("Categorized domains:", categorizedDomains);
   const generateTable = (domainList, isCFTopLevel) => {
     if (!domainList || !Array.isArray(domainList)) {
       console.error('Invalid domainList:', domainList);
-      return ''; // 返回空字符串而不是尝试处理无效数据
+      return '';
     }
     return domainList.map(info => {
       const today = new Date();
@@ -566,7 +601,7 @@ function generateHTML(domains, isAdmin) {
       const whoisErrorMessage = info.whoisError 
         ? `<br><span style="color: red;">WHOIS错误: ${info.whoisError}</span><br><span style="color: blue;">建议：请检查域名状态或API配置</span>`
         : '';
-
+  
       let operationButtons = '';
       if (isAdmin) {
         if (isCFTopLevel) {
@@ -582,22 +617,22 @@ function generateHTML(domains, isAdmin) {
           `;
         }
       }
-
+  
       return `
         <tr data-domain="${info.domain}">
-          <td><span class="status-dot" style="background-color: ${getStatusColor(daysRemaining)};" title="${getStatusTitle(daysRemaining)}"></span></td>
-          <td>${info.domain}</td>
-          <td>${info.system}</td>
-          <td class="editable">${info.registrar}${whoisErrorMessage}</td>
-          <td class="editable">${info.registrationDate}</td>
-          <td class="editable">${info.expirationDate}</td>
-          <td>${daysRemaining}</td>
-          <td>
+          <td class="status-column"><span class="status-dot" style="background-color: ${getStatusColor(daysRemaining)};" title="${getStatusTitle(daysRemaining)}"></span></td>
+          <td class="domain-column" title="${info.domain}">${info.domain}</td>
+          <td class="system-column" title="${info.system}">${info.system}</td>
+          <td class="registrar-column editable" title="${info.registrar}${whoisErrorMessage}">${info.registrar}${whoisErrorMessage}</td>
+          <td class="date-column editable" title="${info.registrationDate}">${info.registrationDate}</td>
+          <td class="date-column editable" title="${info.expirationDate}">${info.expirationDate}</td>
+          <td class="days-column" title="${daysRemaining}">${daysRemaining}</td>
+          <td class="progress-column">
             <div class="progress-bar">
-              <div class="progress" style="width: ${progressPercentage}%;"></div>
+              <div class="progress" style="width: ${progressPercentage}%;" title="${progressPercentage.toFixed(2)}%"></div>
             </div>
           </td>
-          ${isAdmin ? `<td>${operationButtons}</td>` : ''}
+          ${isAdmin ? `<td class="operation-column">${operationButtons}</td>` : ''}
         </tr>
       `;
     }).join('');
@@ -614,81 +649,99 @@ function generateHTML(domains, isAdmin) {
   <!DOCTYPE html>
   <html lang="zh-CN">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</title>
-    <style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</title>
+  <style>
     body {
       font-family: Arial, sans-serif;
       line-height: 1.6;
-      color: #333;
-      max-width: 1200px;
-      margin: 0 auto;
+      margin: 0;
       padding: 20px;
-  }
-  h1 {
-      text-align: center;
-  }
-  .nav {
-      text-align: right;
-      margin-bottom: 20px;
-  }
-  table {
+      background-color: #f4f4f4;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 60px;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 30px;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-  }
-  th, td {
-      padding: 12px 15px;
+      margin-bottom: 20px;
+      table-layout: auto;
+    }
+    th, td {
+      padding: 8px;
       text-align: left;
       border-bottom: 1px solid #ddd;
-  }
-  th {
-      background-color: #f8f8f8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    th {
+      background-color: #f2f2f2;
       font-weight: bold;
-  }
-  tr:hover {
-      background-color: #f5f5f5;
-  }
-  .status-dot {
+    }
+    .status-column { width: 30px; min-width: 30px; max-width: 50px; }
+    .domain-column { min-width: 120px; max-width: 25%; }
+    .system-column, .registrar-column { min-width: 80px; max-width: 15%; }
+    .date-column { min-width: 90px; max-width: 12%; }
+    .days-column { min-width: 60px; max-width: 10%; }
+    .progress-column { min-width: 100px; max-width: 20%; }
+    .operation-column { min-width: 120px; max-width: 20%; }
+    .status-dot {
+      display: inline-block;
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      display: inline-block;
-      margin-right: 5px;
-  }
-  .status-active { background-color: #4CAF50; }
-  .status-warning { background-color: #FFC107; }
-  .progress-bar {
+    }
+    .progress-bar {
+      width: 100%;
       background-color: #e0e0e0;
-      height: 8px;
-      border-radius: 4px;
+      border-radius: 5px;
       overflow: hidden;
-  }
-  .progress {
+    }
+    .progress {
+      height: 20px;
       background-color: #4CAF50;
-      height: 100%;
-  }
-  .btn {
-      padding: 6px 12px;
-      border: none;
-      border-radius: 4px;
+      transition: width 0.5s ease-in-out;
+    }
+    button {
+      padding: 5px 10px;
+      margin: 2px;
       cursor: pointer;
-      font-size: 14px;
-      margin-right: 5px;
-  }
-  .btn-primary { background-color: #4CAF50; color: white; }
-  .btn-secondary { background-color: #2196F3; color: white; }
-  footer {
-      text-align: center;
-      margin-top: 30px;
-      color: #777;
-  }
-    </style>
-  </head>
-  <body>
-    <div class="container">
+    }
+    @media (max-width: 768px) {
+      table {
+        font-size: 12px;
+      }
+      th, td {
+        padding: 6px;
+      }
+      .system-column, .registrar-column {
+        display: none;
+      }
+      .operation-column {
+        width: auto;
+      }
+      button {
+        padding: 3px 6px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
       <h1>${CUSTOM_TITLE}${isAdmin ? ' - 后台管理' : ''}</h1>
       <div class="admin-link">${adminLink}</div>
 
@@ -745,10 +798,130 @@ function generateHTML(domains, isAdmin) {
         </div>
       ` : ''}
     </div>
-    ${isAdmin ? `
     <script>
-      // 保持原有的 JavaScript 函数
 
+    async function editDomain(domain, button) {
+      const row = button.closest('tr');
+      const cells = row.querySelectorAll('.editable');
+      
+      if (button.textContent === '编辑') {
+        button.textContent = '保存';
+        cells.forEach(cell => {
+          const input = document.createElement('input');
+          input.value = cell.textContent;
+          cell.textContent = '';
+          cell.appendChild(input);
+        });
+      } else {
+        button.textContent = '编辑';
+        const updatedData = {
+          domain: domain,
+          registrar: cells[0].querySelector('input').value,
+          registrationDate: cells[1].querySelector('input').value,
+          expirationDate: cells[2].querySelector('input').value
+        };
+    
+        try {
+          const response = await fetch('/api/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Basic ' + btoa(':${ADMIN_PASSWORD}')
+            },
+            body: JSON.stringify(updatedData)
+          });
+    
+          if (response.ok) {
+            cells.forEach(cell => {
+              cell.textContent = cell.querySelector('input').value;
+            });
+            alert('更新成功');
+          } else {
+            throw new Error('更新失败');
+          }
+        } catch (error) {
+          alert('更新失败: ' + error.message);
+          location.reload();
+        }
+      }
+    }
+    
+    async function deleteDomain(domain) {
+      if (confirm('确定要删除这个域名吗？')) {
+        try {
+          const response = await fetch('/api/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Basic ' + btoa(':${ADMIN_PASSWORD}')
+            },
+            body: JSON.stringify({
+              action: 'delete',
+              domain: domain
+            })
+          });
+    
+          if (response.ok) {
+            alert('删除成功');
+            location.reload();
+          } else {
+            throw new Error('删除失败');
+          }
+        } catch (error) {
+          alert('删除失败: ' + error.message);
+        }
+      }
+    }
+    
+    document.addEventListener('click', function(event) {
+      if (event.target.dataset.action === 'update-whois') {
+        updateWhoisInfo(event.target.dataset.domain);
+      } else if (event.target.dataset.action === 'query-whois') {
+        queryWhoisInfo(event.target.dataset.domain);
+      }
+    });
+    
+    async function updateWhoisInfo(domain) {
+      try {
+        const response = await fetch('/api/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + btoa(':${ADMIN_PASSWORD}')
+          },
+          body: JSON.stringify({
+            action: 'update-whois',
+            domain: domain
+          })
+        });
+    
+        if (response.ok) {
+          alert('WHOIS信息更新成功');
+          location.reload();
+        } else {
+          throw new Error('WHOIS信息更新失败');
+        }
+      } catch (error) {
+        alert('WHOIS信息更新失败: ' + error.message);
+      }
+    }
+    
+    async function queryWhoisInfo(domain) {
+      try {
+        const response = await fetch('/whois/' + domain);
+        const data = await response.json();
+    
+        if (data.error) {
+          alert('查询WHOIS信息失败: ' + data.message);
+        } else {
+          alert('WHOIS信息：\\n' + data.rawData);
+        }
+      } catch (error) {
+        alert('查询WHOIS信息失败: ' + error.message);
+      }
+    }
+
+    ${isAdmin ? `
       document.getElementById('addCustomDomainForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const domain = document.getElementById('newDomain').value;
@@ -786,9 +959,13 @@ function generateHTML(domains, isAdmin) {
           alert('添加失败');
         });
       });
-    </script>
     ` : ''}
-    </body> </html> `; }
+    </script>
+    ${footerHTML}
+    </body>
+  </html>
+  `;
+}
 
 
 function getStatusColor(daysRemaining) {
