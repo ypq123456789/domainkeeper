@@ -85,9 +85,7 @@
 
 ![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/20ebfa4e-8204-4b11-858f-e8b742b22785)
 
-https://domainkeeper.bacon159.me/ 
-
-前台密码ypq123456
+https://dm.0o11.com/
 
 # 其他
 ## 贡献指南
