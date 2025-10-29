@@ -1,0 +1,36 @@
+{
+  "name": "domainkeeper-backend",
+  "version": "2.0.0",
+  "description": "DomainKeeper 前后端分离版本 - 后端API服务",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "domain",
+    "management",
+    "cloudflare",
+    "whois"
+  ],
+  "author": "bacon159",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "compression": "^1.7.4",
+    "express-rate-limit": "^7.1.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "sqlite3": "^5.1.6",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

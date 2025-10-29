@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: domainkeeper-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ACCESS_PASSWORD=${ACCESS_PASSWORD:-}
+      - CF_API_TOKEN=${CF_API_TOKEN:-}
+      - WHOIS_PROXY_URL=${WHOIS_PROXY_URL:-}
+      - DATABASE_PATH=/app/data/domains.db
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-60}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+      - CUSTOM_TITLE=${CUSTOM_TITLE:-我的域名管理}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    networks:
+      - domainkeeper
+
+  # 前端服务
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: domainkeeper-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      - VUE_APP_API_BASE_URL=${VUE_APP_API_BASE_URL:-http://localhost:3001/api}
+    depends_on:
+      - backend
+    networks:
+      - domainkeeper
+
+volumes:
+  backend_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  domainkeeper:
+    driver: bridge

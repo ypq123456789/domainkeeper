@@ -1,0 +1,55 @@
+{
+  "name": "domainkeeper-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "DomainKeeper 前后端分离版本 - 前端应用",
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
+    "dev": "vue-cli-service serve --mode development"
+  },
+  "dependencies": {
+    "vue": "^3.3.0",
+    "vue-router": "^4.2.0",
+    "vuex": "^4.1.0",
+    "axios": "^1.6.2",
+    "element-plus": "^2.4.4",
+    "@element-plus/icons-vue": "^2.1.0",
+    "echarts": "^5.4.3",
+    "vue-echarts": "^6.6.1",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.6",
+    "@babel/eslint-parser": "^7.23.3",
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-plugin-eslint": "~5.0.0",
+    "@vue/cli-plugin-router": "~5.0.0",
+    "@vue/cli-plugin-vuex": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "eslint": "^7.32.0",
+    "eslint-plugin-vue": "^8.0.3"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/vue3-essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "@babel/eslint-parser",
+      "requireConfigFile": false
+    },
+    "rules": {}
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ]
+}
