@@ -1,172 +1,258 @@
-## 项目简介
+# DomainKeeper
 
-这是一个简洁高效的域名可视化展示面板。提供了直观的界面，让用户能够一目了然地查看他们的域名组合，包括各个域名的状态、注册商、注册日期、过期日期和使用进度。
+DomainKeeper 是一个基于 Cloudflare Workers 的域名面板，用来集中展示域名状态、注册商、注册日期、到期日期和剩余天数，并支持后台手动维护。
 
-## 🚀 部署方式选择
+当前仓库包含两套 Workers 版本：
 
-本项目提供**三种部署方案**，请根据您的需求选择：
+- `index.js`：初级版，手动维护域名列表
+- `domainkeeper.js`：高级版，自动同步 Cloudflare Zone，并自动拉取 WHOIS / RDAP 信息
 
-### 方案一：Cloudflare Workers 部署（推荐新手）
-- ✅ **部署简单**：无需服务器，几分钟完成部署
-- ✅ **免费使用**：利用 Cloudflare 免费额度
-- ✅ **稳定可靠**：基于 Cloudflare 全球网络
-- ❌ **功能受限**：受 Workers 环境限制
-- 📍 **适合场景**：个人使用、快速上线、不需要复杂功能
+如果你需要完整前后端分离架构，请查看 [`self-hosted/README.md`](./self-hosted/README.md)。
 
-### 方案二：前后端分离自托管（推荐进阶）
-- ✅ **功能完整**：现代化 Web 应用，功能丰富
-- ✅ **完全控制**：可自定义扩展，数据完全可控
-- ✅ **现代技术**：Vue.js + Node.js 架构
-- ❌ **需要服务器**：需要自己的服务器或 VPS
-- 📍 **适合场景**：企业使用、功能要求高、有服务器资源
+## 当前 Worker 版本特性
 
-### 方案三：混合部署
-- 使用 Cloudflare Workers 作为前端
-- 自建服务器提供 API 服务
-- 获得两者优势
+`domainkeeper.js` 对应的是当前推荐使用的版本，主要特性如下：
 
----
+- 自动同步 Cloudflare 账户下的顶级域名
+- 支持手动添加二级域名或自定义域名
+- 优先使用 Worker 直连 WHOIS，失败后回退到 RDAP
+- 针对 `.xyz`、`.org`、`.in` 等后缀增加了额外后备源
+- 支持二级域名沿父域名链回溯识别注册商和日期
+- WHOIS 结果默认缓存 1 小时
+- WHOIS 失败时不会覆盖已有有效数据
+- 后台支持手动“更新 WHOIS”“查询 WHOIS”“查看属性”
+- 支持前台密码和后台密码分离
+- 数据存储在 Cloudflare KV `DOMAIN_INFO`
 
-## 📖 详细部署指南
+## 部署方式选择
 
-### 🌥️ Cloudflare Workers 版本（本文档）
-继续阅读本文档，了解 Workers 版本的部署方法
+### 方案一：Workers 初级版
 
-### 🏗️ 前后端分离版本
-查看 [`self-hosted/README.md`](./self-hosted/README.md) 了解自托管部署方法
+适合少量域名、完全手动维护。
 
----
+- 文件：`index.js`
+- 优点：最简单，无需 KV、无需 Cloudflare API Token
+- 缺点：不能自动同步 Cloudflare 域名，也没有自动 WHOIS 缓存逻辑
 
-## 主要特性
-**初级版本**
+### 方案二：Workers 高级版
 
-- 清晰展示域名列表及其关键信息：域名状态、注册商、注册日期和过期日期
-- 可视化呈现域名使用进度条
-- 自动计算并显示域名剩余有效天数
-- 响应式设计，完美适配桌面和移动设备
-- 轻量级实现，快速加载
-- **支持输入自定义域名**
+适合当前大多数使用场景。
 
-**高级版本**
-- 清晰展示域名列表及其关键信息：域名状态、注册商、注册日期、过期日期和**剩余天数**
-- 可视化呈现域名使用进度条
-- 自动计算并显示域名剩余有效天数
-- 响应式设计，完美适配桌面和移动设备
-- 轻量级实现，快速加载
-- **UI进一步美化，风格统一**
-- **前台和后台分离，支持密码保护**
-- **通过 Cloudflare API 自动获取域名列表**
-- **集成自建 WHOIS 代理服务，自动获取顶级域名信息、二级域名的注册日期**
-- **支持手动编辑二级域名信息**
-- **支持输入自定义域名**
+- 文件：`domainkeeper.js`
+- 优点：自动同步、自动 WHOIS、支持二级域名、支持后台管理
+- 缺点：需要配置 KV 和 Cloudflare API Token
 
-## 技术实现
-- 前端：HTML5, CSS3, JavaScript
-- 后端：Cloudflare Workers, KV 存储
-- API 集成：Cloudflare API, 自建 WHOIS 代理服务
+### 方案三：前后端分离自托管
 
-## 个性化部分
-- 可修改 `CUSTOM_TITLE` 变量来自定义面板标题
-- 可以绑定自定义域名到 Worker，以提高访问稳定性
+适合需要完整 API、自定义权限和更强扩展性的场景。
 
-# 🌥️ Cloudflare Workers 部署方案
+- 目录：`self-hosted/`
 
-## DomainKeeper - 初级版本，只能自定义输入，更灵活，但不高效，适用于少数域名
+## Workers 高级版部署
 
-## 快速部署
+以下步骤对应当前 `domainkeeper.js` 的实际实现。
 
-   - 登录您的Cloudflare账户
-   - 创建新的Worker
-   - 将 `index.js` 的内容复制到Worker编辑器，编辑 `DOMAINS` 数组，添加您的域名信息：
-   ```javascript
-   const DOMAINS = [
-     { domain: "example.com", registrationDate: "2022-01-01", expirationDate: "2027-01-01", system: "Cloudflare" },
-     // 添加更多域名...
-   ];
-   ```
-   - 保存并部署
+### 1. 创建 Worker
 
-## demo
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/546d0a4c-a74b-436c-a42e-1b013ff6e62b)
-[demo.0o11.com](http://demo.0o11.com/)
+在 Cloudflare Dashboard 中创建一个新的 Worker，然后将 [`domainkeeper.js`](./domainkeeper.js) 的内容粘贴进去。
 
-# DomainKeeper - 高级版本，集成cloudflare的域名信息获取和whois查询功能，大大提升了域名管理的效率和便捷性
+注意：
 
-## 快速部署
+- 这是模块化 Worker，不是旧版 Service Worker 写法
+- 代码使用了 `cloudflare:sockets`，用于直接发起 WHOIS TCP 查询
 
-1. 登录您的 Cloudflare 账户
-2. 创建新的 Worker
-3. 将domainkeeper.js脚本内容复制到 Worker 编辑器
-4. 在脚本顶部配置以下变量：
-   ```javascript
-   const CF_API_KEY = "your_cloudflare_api_key";
-   const WHOIS_PROXY_URL = "your_whois_proxy_url";
-   const ACCESS_PASSWORD = "your_frontend_password";
-   const ADMIN_PASSWORD = "your_backend_password";
-   ```
+### 2. 创建 KV 命名空间
 
-**CF_API_KEY的获取方式**： 登录自己的cloudflare账号，打开https://dash.cloudflare.com/profile 点击API令牌，创建令牌，读取所有资源-使用模板，继续以显示摘要，创建令牌，复制此令牌，**保存到记事本，之后不会再显示！**
+创建一个 KV 命名空间，并绑定到 Worker：
 
-**WHOIS_PROXY_URL的获取方式**：需要你自建，详见[whois-proxy](https://github.com/ypq123456789/whois-proxy)。**注意，whois-proxy用于本脚本必须绑定域名，不能用IP！假如你的api请求地址是http(s)://你的域名/whois 那么WHOIS_PROXY_URL你只需要填入http(s)://你的域名。**
+- Binding 名称：`DOMAIN_INFO`
 
-前台密码按需设置，**后台密码必须设置。**
+这是必填项。没有这个绑定，Worker 会直接报错：
 
-5. 创建一个 KV 命名空间，命名为`DOMAIN_INFO`，并将其绑定到 Worker，绑定名称为 `DOMAIN_INFO`
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/6d97b4c4-3cfe-4b1f-9423-000348498f8e)
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/ff4601b0-5787-4152-ae96-1e79e0e4d817)
+```txt
+Missing DOMAIN_INFO binding
+```
 
-6. 保存并部署
+### 3. 配置环境变量 / Secrets
 
-## demo
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/0ac1f968-f5f8-498c-888c-af9456a9c6bd)
+不要把真实密钥直接写进源码。当前版本从 Worker 运行时读取以下变量：
 
-![image](https://github.com/ypq123456789/domainkeeper/assets/114487221/20ebfa4e-8204-4b11-858f-e8b742b22785)
+| 变量名 | 必填 | 说明 |
+|---|---|---|
+| `CF_API_KEY` | 是 | Cloudflare API Token，用于读取 Zone 列表 |
+| `ADMIN_PASSWORD` | 是 | 后台登录密码，同时用于后台接口鉴权 |
+| `ACCESS_PASSWORD` | 否 | 前台访问密码；留空则首页可直接访问 |
+| `WHOISXML_API_KEY` | 否 | 可选后备源；只有在前置 WHOIS / RDAP 都失败时才会使用 |
 
-https://dm.0o11.com/
+建议：
 
-# 🔄 版本对比
+- `CF_API_KEY`、`ADMIN_PASSWORD`、`ACCESS_PASSWORD`、`WHOISXML_API_KEY` 都使用 Worker Secret 存储
+- 不要再修改源码里的 `*_DEFAULT` 常量来保存真实值
 
-| 功能特性 | Workers 初级版 | Workers 高级版 | 前后端分离版 |
-|---------|---------------|---------------|-------------|
-| 部署难度 | ⭐ 极简单 | ⭐⭐ 简单 | ⭐⭐⭐ 中等 |
-| 功能丰富度 | ⭐⭐ 基础 | ⭐⭐⭐ 较好 | ⭐⭐⭐⭐⭐ 完整 |
-| 界面美观度 | ⭐⭐⭐ 良好 | ⭐⭐⭐⭐ 很好 | ⭐⭐⭐⭐⭐ 现代化 |
-| 扩展性 | ❌ 有限 | ❌ 有限 | ✅ 完全可扩展 |
-| 成本 | 💰 免费 | 💰 免费 | 💰💰 需服务器 |
-| 数据控制 | ❌ 依赖CF | ❌ 依赖CF | ✅ 完全控制 |
-| API接口 | ❌ 无 | ❌ 无 | ✅ RESTful API |
-| 移动端适配 | ✅ 响应式 | ✅ 响应式 | ✅ 完美适配 |
+### 4. 配置 Cloudflare API Token 权限
 
-**选择建议**：
-- 🔰 **新手用户**：选择 Workers 初级版，简单快速
-- 🚀 **进阶用户**：选择 Workers 高级版，功能更丰富  
-- 🏢 **企业用户**：选择前后端分离版，功能完整可扩展
+`CF_API_KEY` 实际上应该填 Cloudflare API Token，而不是 Global API Key。
 
-# 其他
-## 贡献指南
+最少需要能读取 Zone 列表。通常给这个 Token 配置只读权限即可。
 
-欢迎通过Issue和Pull Request参与项目改进。如有重大变更，请先提Issue讨论。
+建议至少包含：
+
+- `Zone:Read`
+
+如果你只打算同步特定账户下的域名，把 Token 范围收窄到对应账号或指定 Zone，别直接给全局高权限。
+
+### 5. 按需修改标题
+
+如果你要修改页面标题，编辑 [`domainkeeper.js`](./domainkeeper.js) 顶部常量：
+
+```javascript
+const CUSTOM_TITLE = "培根的玉米大全";
+```
+
+### 6. 部署
+
+保存并部署 Worker。
+
+部署后默认可访问：
+
+- `/`：前台页面
+- `/login`：前台登录
+- `/admin`：后台页面
+- `/admin-login`：后台登录
+- `/whois/example.com`：查询原始 WHOIS 文本
+
+## 当前 WHOIS / RDAP 逻辑说明
+
+当前版本和旧 README 最大的区别在这里。
+
+### 不再依赖自建 WHOIS 代理
+
+当前版本优先使用 Worker 直连 WHOIS：
+
+- 通过 `cloudflare:sockets` 直连 43 端口
+- 自动识别部分后缀的权威 WHOIS Server
+- 必要时跟随 referral server
+
+只有在源码里手动打开 `ENABLE_WHOIS_PROXY_FALLBACK` 时，才会回退到 `WHOIS_PROXY_URL`。
+
+默认配置下：
+
+- `WHOIS_PROXY_URL` 不是必填项
+- 不需要额外部署 `whois-proxy`
+
+### RDAP 后备源
+
+当传统 WHOIS 无法提供稳定结构时，会自动尝试 RDAP。
+
+当前已包含：
+
+- 权威 RDAP
+- `rdap.org`
+- `.xyz` 额外后备源
+- 阿里云 RDAP 作为 `.xyz` 的额外补源
+
+### 二级域名识别
+
+对于 `a.b.example.tld` 这类域名，当前版本会：
+
+1. 先尝试查自己
+2. 查不到时沿父域名链回溯
+3. 例如回退到 `example.tld`
+4. 将识别到的注册商、注册日期、到期日期用于展示
+
+因此像 `eu.org`、`pp.ua`、`indevs.in` 这类二级域名，现在可以尽量自动补全注册信息。
+
+## 缓存与刷新策略
+
+当前版本已经不是“每次刷新页面都查一次 WHOIS”。
+
+- 自动查询缓存 1 小时
+- 查询失败缓存 10 分钟后才重试
+- 页面刷新时优先使用 KV 中已有结果
+- 后台手动点击“更新 WHOIS”会立即重新拉取
+- WHOIS 失败时不会覆盖已有有效注册商/日期
+
+这也是当前版本相对旧版本的关键差异。
+
+## 后台管理说明
+
+后台主要支持以下操作：
+
+- 同步 Cloudflare 域名
+- 手动添加自定义域名
+- 编辑注册商 / 注册日期 / 到期日期
+- 手动更新 WHOIS
+- 查看原始 WHOIS
+- 查看域名属性
+- 删除域名记录
+- 将自定义域名重置为 Cloudflare 同步域名
+
+说明：
+
+- 顶级域名同步来自 Cloudflare Zone 列表
+- 自定义域名和二级域名存储在 `DOMAIN_INFO` KV 中
+- 同步时不会删除标记为 `isCustom` 的域名
+
+## 自定义域名绑定
+
+你可以把 Worker 绑定到自己的域名，例如：
+
+- `https://ym.example.com/`
+
+绑定后和 `workers.dev` 访问的是同一套逻辑。只要路由指向的是同一个 Worker，自定义域名不会改变 WHOIS 行为。
+
+## 初级版部署
+
+如果你只需要手动维护少量域名，可以使用 [`index.js`](./index.js)。
+
+步骤很简单：
+
+1. 创建一个新的 Worker
+2. 复制 [`index.js`](./index.js) 内容
+3. 修改 `DOMAINS` 数组
+4. 保存并部署
+
+示例：
+
+```javascript
+const DOMAINS = [
+  {
+    domain: "example.com",
+    registrationDate: "2024-01-01",
+    expirationDate: "2026-01-01",
+    system: "Cloudflare"
+  }
+];
+```
+
+## 版本对比
+
+| 功能 | `index.js` | `domainkeeper.js` | `self-hosted` |
+|---|---|---|---|
+| 部署复杂度 | 低 | 中 | 高 |
+| 自动同步 Cloudflare | 否 | 是 | 是 |
+| 自动 WHOIS / RDAP | 否 | 是 | 是 |
+| 二级域名自动识别 | 否 | 是 | 可扩展 |
+| KV 存储 | 否 | 是 | 否 |
+| 后台管理 | 否 | 是 | 是 |
+| 自定义扩展能力 | 低 | 中 | 高 |
+
+## 安全建议
+
+当前 Worker 版本已经移除了会把登录密码写入日志的调试输出，但仍建议你按下面方式使用：
+
+- 所有密钥都放到 Worker Secrets，不要写死在源码里
+- `ADMIN_PASSWORD` 使用高强度随机密码
+- `ACCESS_PASSWORD` 只在你确实需要前台鉴权时开启
+- `CF_API_KEY` 使用最小权限 Token
+
+如果你要进一步加强安全性，下一步应改为签名 Session，而不是直接用密码值做 Cookie 校验。
+
+## 相关文档
+
+- 项目总览：[`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md)
+- 自托管版本：[`self-hosted/README.md`](./self-hosted/README.md)
 
 ## 开源协议
 
-本项目采用 [MIT 许可证](https://choosealicense.com/licenses/mit/)
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ypq123456789/domainkeeper&type=Date)](https://star-history.com/#ypq123456789/domainkeeper&Date)
-
-## 交流TG群：
-https://t.me/+ydvXl1_OBBBiZWM1
-
-## 支持作者
-
-<span><small>非常感谢您对 domainkeeper 项目的兴趣！维护开源项目确实需要大量时间和精力投入。若您认为这个项目为您带来了价值，希望您能考虑给予一些支持，哪怕只是一杯咖啡的费用。
-您的慷慨相助将激励我继续完善这个项目，使其更加实用。它还能让我更专心地参与开源社区的工作。如果您愿意提供赞助，可通过下列渠道：</small></span>
-
-- 给该项目点赞 [![给该项目点赞](https://img.shields.io/github/stars/ypq123456789/domainkeeper?style=social)](https://github.com/ypq123456789/domainkeeper)
-- 关注我的 Github [![关注我的 Github](https://img.shields.io/github/followers/ypq123456789?style=social)](https://github.com/ypq123456789)
-
-| 微信 | 支付宝 |
-|------|--------|
-| ![微信](https://github.com/ypq123456789/TrafficCop/assets/114487221/fb265eef-e624-4429-b14a-afdf5b2ca9c4) | ![支付宝](https://github.com/ypq123456789/TrafficCop/assets/114487221/884b58bd-d76f-4e8f-99f4-cac4b9e97168) |
-
+本项目采用 [MIT License](https://choosealicense.com/licenses/mit/)
