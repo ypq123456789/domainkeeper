@@ -1,3 +1,5 @@
+import { connect } from 'cloudflare:sockets';
+
 // 在文件顶部添加版本信息后台密码（不可为空）
 const VERSION = "1.7.0";
 
@@ -5,20 +7,30 @@ const VERSION = "1.7.0";
 const CUSTOM_TITLE = "培根的玉米大全";
 
 // 在这里设置你的 Cloudflare API Token
-const CF_API_KEY = "";
+const CF_API_KEY_DEFAULT = "";
+let CF_API_KEY = CF_API_KEY_DEFAULT;
 
 // 自建 WHOIS 代理服务地址
 const WHOIS_PROXY_URL = "https://whois.0o11.com";
+const ENABLE_WHOIS_PROXY_FALLBACK = false;
+const WHOIS_CACHE_TTL_MS = 60 * 60 * 1000;
+const WHOIS_CACHE_SCHEMA_VERSION = 9;
+const WHOIS_ERROR_RETRY_MS = 10 * 60 * 1000;
+const WHOIS_PORT = 43;
+const WHOIS_QUERY_TIMEOUT_MS = 15000;
+const WHOIS_MAX_RESPONSE_BYTES = 256 * 1024;
+const WHOIS_LOOKUP_MEMO_TTL_MS = 5 * 60 * 1000;
 
-// 访问密码（可为空）
-const ACCESS_PASSWORD = "";
+const ACCESS_PASSWORD_DEFAULT = "";
+let ACCESS_PASSWORD = ACCESS_PASSWORD_DEFAULT;
 
-// 后台密码（不可为空）
-const ADMIN_PASSWORD = "";
+const ADMIN_PASSWORD_DEFAULT = "";
+let ADMIN_PASSWORD = ADMIN_PASSWORD_DEFAULT;
+const WHOISXML_API_KEY_DEFAULT = "";
+let WHOISXML_API_KEY = WHOISXML_API_KEY_DEFAULT;
 
-// KV 命名空间绑定名称
-const KV_NAMESPACE = DOMAIN_INFO;
-
+let KV_NAMESPACE = null;
+const WHOIS_LOOKUP_MEMO = new Map();
 // footerHTML
 const footerHTML = `
   <footer style="
@@ -36,13 +48,25 @@ const footerHTML = `
   </footer>
 `;
 
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-});
+export default {
+  async fetch(request, env) {
+    applyRuntimeBindings(env);
+    return handleRequest(request);
+  }
+};
+
+function applyRuntimeBindings(env) {
+  CF_API_KEY = env.CF_API_KEY || CF_API_KEY_DEFAULT;
+  ACCESS_PASSWORD = env.ACCESS_PASSWORD || ACCESS_PASSWORD_DEFAULT;
+  ADMIN_PASSWORD = env.ADMIN_PASSWORD || ADMIN_PASSWORD_DEFAULT;
+  WHOISXML_API_KEY = env.WHOISXML_API_KEY || WHOISXML_API_KEY_DEFAULT;
+  KV_NAMESPACE = env.DOMAIN_INFO || null;
+  if (!KV_NAMESPACE) {
+    throw new Error('Missing DOMAIN_INFO binding');
+  }
+}
 
 async function handleRequest(request) {
-   // 清理KV中的错误内容
-   await cleanupKV();
    const url = new URL(request.url);
   const path = url.pathname;
 
@@ -144,9 +168,6 @@ async function handleLogin(request) {
     const formData = await request.formData();
     const password = formData.get("password");
     
-    console.log("Entered password:", password);
-    console.log("Expected password:", ACCESS_PASSWORD);
-    
     if (password === ACCESS_PASSWORD) {
       return new Response("Login successful", {
         status: 302,
@@ -174,10 +195,7 @@ async function handleAdminLogin(request) {
   if (request.method === "POST") {
     console.log("Processing POST request for admin login");
     const formData = await request.formData();
-    console.log("Form data:", formData);
     const password = formData.get("password");
-    console.log("Entered admin password:", password);
-    console.log("Expected admin password:", ADMIN_PASSWORD);
 
     if (password === ADMIN_PASSWORD) {
       return new Response("Admin login successful", {
@@ -219,8 +237,10 @@ async function handleApiUpdate(request) {
       await KV_NAMESPACE.delete(`whois_${domain}`);
     } else if (action === 'update-whois') {
       // 更新 WHOIS 信息
+      const cachedInfo = await getCachedWhoisInfo(domain) || { domain };
       const whoisInfo = await fetchWhoisInfo(domain);
-      await cacheWhoisInfo(domain, whoisInfo);
+      const mergedInfo = mergeWhoisInfoWithFallback(cachedInfo, whoisInfo);
+      await cacheWhoisInfo(domain, mergedInfo);
     } else if (action === 'add') {
       // 添加新域名
       const newDomainInfo = {
@@ -291,20 +311,24 @@ async function handleApiUpdate(request) {
       
       // 处理CF中的域名，确保它们在KV中
       for (const cfDomain of cfDomains) {
-        const cachedInfo = await getCachedWhoisInfo(cfDomain.domain);
-        if (!cachedInfo) {
-          // 如果是顶级域名，获取WHOIS信息
-          if (cfDomain.domain.split('.').length === 2 && WHOIS_PROXY_URL) {
-            try {
-              const whoisInfo = await fetchWhoisInfo(cfDomain.domain);
-              await cacheWhoisInfo(cfDomain.domain, { ...cfDomain, ...whoisInfo });
-            } catch (error) {
-              console.error(`Error fetching WHOIS for ${cfDomain.domain}:`, error);
-              await cacheWhoisInfo(cfDomain.domain, cfDomain);
-            }
-          } else {
-            await cacheWhoisInfo(cfDomain.domain, cfDomain);
+        const cachedRecord = await getCachedWhoisRecord(cfDomain.domain);
+        const cachedInfo = cachedRecord ? cachedRecord.data : null;
+        const baseInfo = { ...cfDomain, ...(cachedInfo || {}) };
+
+        if (shouldRefreshWhoisCache(baseInfo, cachedRecord)) {
+          try {
+            const whoisInfo = await fetchWhoisInfo(cfDomain.domain);
+            const mergedInfo = mergeWhoisInfoWithFallback(baseInfo, whoisInfo);
+            await cacheWhoisInfo(cfDomain.domain, mergedInfo);
+          } catch (error) {
+            console.error(`Error fetching WHOIS for ${cfDomain.domain}:`, error);
+            await cacheWhoisInfo(cfDomain.domain, {
+              ...baseInfo,
+              whoisError: error.message
+            });
           }
+        } else if (!cachedInfo) {
+          await cacheWhoisInfo(cfDomain.domain, baseInfo);
         }
       }
       
@@ -346,19 +370,11 @@ async function handleWhoisRequest(domain) {
   console.log(`Handling WHOIS request for domain: ${domain}`);
 
   try {
-    console.log(`Fetching WHOIS data from: ${WHOIS_PROXY_URL}/whois/${domain}`);
-    const response = await fetch(`${WHOIS_PROXY_URL}/whois/${domain}`);
-    
-    if (!response.ok) {
-      throw new Error(`WHOIS API responded with status: ${response.status}`);
-    }
-    
-    const whoisData = await response.json();
-    console.log(`Received WHOIS data:`, whoisData);
-    
+    const rawData = await fetchWhoisRawData(domain);
+
     return new Response(JSON.stringify({
       error: false,
-      rawData: whoisData.rawData
+      rawData
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -430,7 +446,7 @@ async function fetchDomainInfo(domains) {
     if (value) {
       try {
         const parsedValue = JSON.parse(value);
-        return parsedValue.data;
+        return extractCachedWhoisData(parsedValue);
       } catch (error) {
         console.error(`Error parsing data for ${key.name}:`, error);
         return null;
@@ -450,19 +466,22 @@ async function fetchDomainInfo(domains) {
 
     let domainInfo = { ...domain };
 
-    const cachedInfo = await getCachedWhoisInfo(domain.domain || domain);
+    const domainName = domain.domain || domain;
+    const cachedRecord = await getCachedWhoisRecord(domainName);
+    const cachedInfo = cachedRecord ? cachedRecord.data : null;
     if (cachedInfo) {
       domainInfo = { ...domainInfo, ...cachedInfo };
-    } else if (!domainInfo.isCustom && domainInfo.domain && domainInfo.domain.split('.').length === 2 && WHOIS_PROXY_URL) {
+    }
+
+    if (shouldRefreshWhoisCache(domainInfo, cachedRecord)) {
       try {
         const whoisInfo = await fetchWhoisInfo(domainInfo.domain);
-        domainInfo = { ...domainInfo, ...whoisInfo };
-        if (!whoisInfo.whoisError) {
-          await cacheWhoisInfo(domainInfo.domain, whoisInfo);
-        }
+        domainInfo = mergeWhoisInfoWithFallback(domainInfo, whoisInfo);
+        await cacheWhoisInfo(domainInfo.domain, domainInfo);
       } catch (error) {
         console.error(`Error fetching WHOIS info for ${domainInfo.domain}:`, error);
         domainInfo.whoisError = error.message;
+        await cacheWhoisInfo(domainInfo.domain, domainInfo);
       }
     }
 
@@ -474,98 +493,963 @@ async function fetchDomainInfo(domains) {
 async function fetchWhoisInfo(domain) {
   try {
     console.log(`Fetching WHOIS data for: ${domain}`);
-    const response = await fetch(`${WHOIS_PROXY_URL}/whois/${domain}`);
-    
-    // 检查响应类型
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      console.error(`Received non-JSON response for ${domain}: ${contentType}`);
-      return {
-        registrar: 'Unknown',
-        registrationDate: 'Unknown',
-        expirationDate: 'Unknown',
-        whoisError: `服务器返回了非JSON格式 (${contentType})`
-      };
-    }
-    
-    // 检查是否为特殊TLD，可能需要特殊处理
-    const tld = domain.split('.').pop();
-    if (tld === 'blog') {
-      console.log(`Special handling for .${tld} domain`);
-    }
-    
-    const whoisData = await response.json();
-    console.log('Raw WHOIS proxy response:', JSON.stringify(whoisData, null, 2));
+    const lookupResult = await resolveBestWhoisResultForDomain(domain);
+    const parsed = lookupResult.parsed;
 
-    if (whoisData) {
+    if (!isWhoisInfoCompletelyUnknown(parsed)) {
       return {
-        registrar: whoisData.registrar || 'Unknown',
-        registrationDate: formatDate(whoisData.creationDate) || 'Unknown',
-        expirationDate: formatDate(whoisData.expirationDate) || 'Unknown'
-      };
-    } else {
-      console.warn(`Incomplete WHOIS data for ${domain}`);
-      return {
-        registrar: 'Unknown',
-        registrationDate: 'Unknown',
-        expirationDate: 'Unknown',
-        whoisError: 'Incomplete WHOIS data'
+        ...parsed,
+        whoisLookupDomain: lookupResult.lookupDomain
       };
     }
-  } catch (error) {
-    console.error(`Error fetching WHOIS info for ${domain}:`, error);
-    
-    // 提供更详细的错误信息
-    let errorMessage = error.message;
-    if (errorMessage.includes("Unexpected token '<'")) {
-      errorMessage = "服务器返回了HTML而不是JSON数据。WHOIS服务可能暂时不可用，或者不支持该域名。";
-    }
-    
+
     return {
       registrar: 'Unknown',
       registrationDate: 'Unknown',
       expirationDate: 'Unknown',
-      whoisError: errorMessage
+      whoisError: 'WHOIS raw data parsed but required fields were not found'
+    };
+  } catch (error) {
+    console.error(`Error fetching WHOIS info for ${domain}:`, error);
+
+    return {
+      registrar: 'Unknown',
+      registrationDate: 'Unknown',
+      expirationDate: 'Unknown',
+      whoisError: error.message
     };
   }
 }
 
+async function fetchWhoisRawData(domain) {
+  const lookupResult = await resolveBestWhoisResultForDomain(domain);
+  return lookupResult.rawData;
+}
+
+async function resolveBestWhoisResultForDomain(domain) {
+  const candidates = getWhoisLookupCandidates(domain);
+  let bestResult = null;
+  const errors = [];
+
+  for (const candidateDomain of candidates) {
+    try {
+      const candidateResult = await resolveBestWhoisResult(candidateDomain);
+      const scoredCandidate = {
+        ...candidateResult,
+        lookupDomain: candidateDomain
+      };
+
+      if (!bestResult || scoredCandidate.score > bestResult.score || (scoredCandidate.score === bestResult.score && String(scoredCandidate.rawData).length > String(bestResult.rawData).length)) {
+        bestResult = scoredCandidate;
+      }
+
+      if (hasCompleteWhoisData(scoredCandidate.parsed)) {
+        return scoredCandidate;
+      }
+    } catch (error) {
+      errors.push(`${candidateDomain}: ${error.message}`);
+      console.error(`WHOIS candidate lookup failed for ${candidateDomain}:`, error);
+    }
+  }
+
+  if (bestResult) {
+    return bestResult;
+  }
+
+  throw new Error(`WHOIS query failed (${errors.join(' | ')})`);
+}
+
+function getWhoisLookupCandidates(domain) {
+  const labels = String(domain || '').trim().toLowerCase().split('.').filter(Boolean);
+  if (labels.length < 2) {
+    return [domain];
+  }
+
+  const candidates = [];
+  for (let i = 0; i <= labels.length - 2; i++) {
+    candidates.push(labels.slice(i).join('.'));
+  }
+
+  return [...new Set(candidates)];
+}
+
+async function resolveBestWhoisResult(domain) {
+  const cachedMemo = WHOIS_LOOKUP_MEMO.get(domain);
+  if (cachedMemo && (Date.now() - cachedMemo.timestamp) < WHOIS_LOOKUP_MEMO_TTL_MS) {
+    return cachedMemo.result;
+  }
+
+  const result = await performWhoisLookup(domain);
+  WHOIS_LOOKUP_MEMO.set(domain, {
+    timestamp: Date.now(),
+    result
+  });
+  return result;
+}
+
+async function performWhoisLookup(domain) {
+  const tld = domain.split('.').pop().toLowerCase();
+  const attempts = [
+    { name: 'direct', fetcher: fetchWhoisRawDataDirect },
+    { name: 'authoritative-rdap', fetcher: fetchWhoisRawDataViaAuthoritativeRdap },
+    { name: 'rdap-org', fetcher: fetchWhoisRawDataViaRdapOrg }
+  ];
+
+  if (tld === 'xyz') {
+    attempts.push({ name: 'rdap-xyz', fetcher: fetchWhoisRawDataViaXyzRdap });
+    attempts.push({ name: 'rdap-aliyun', fetcher: fetchWhoisRawDataViaAliyunRdap });
+  }
+
+  attempts.push({ name: 'whoisxml', fetcher: fetchWhoisRawDataViaWhoisXml });
+
+  if (ENABLE_WHOIS_PROXY_FALLBACK && WHOIS_PROXY_URL) {
+    attempts.push({ name: 'proxy', fetcher: fetchWhoisRawDataViaProxy });
+  }
+
+  const errors = [];
+  let bestResult = null;
+
+  for (const attempt of attempts) {
+    try {
+      const rawData = await attempt.fetcher(domain);
+      const parsed = sanitizeWhoisInfo(parseWhoisResult({ rawData }));
+      const score = getWhoisDataScore(parsed);
+      const candidate = {
+        source: attempt.name,
+        rawData,
+        parsed,
+        score
+      };
+
+      if (!bestResult || score > bestResult.score || (score === bestResult.score && String(rawData).length > String(bestResult.rawData).length)) {
+        bestResult = candidate;
+      }
+
+      if (hasCompleteWhoisData(parsed)) {
+        return candidate;
+      }
+
+      errors.push(`${attempt.name}: parsed but required fields were not found`);
+    } catch (error) {
+      errors.push(`${attempt.name}: ${error.message}`);
+      console.error(`${attempt.name} WHOIS failed for ${domain}:`, error);
+    }
+  }
+
+  if (bestResult) {
+    return bestResult;
+  }
+
+  throw new Error(`WHOIS query failed (${errors.join(' | ')})`);
+}
+
+function getWhoisDataScore(data) {
+  if (!data || typeof data !== 'object') return 0;
+
+  let score = 0;
+  if (data.registrar && data.registrar !== 'Unknown') score += 1;
+  if (data.registrationDate && data.registrationDate !== 'Unknown') score += 1;
+  if (data.expirationDate && data.expirationDate !== 'Unknown') score += 1;
+  return score;
+}
+
+async function fetchWhoisRawDataDirect(domain) {
+  const connect = getWhoisConnect();
+  const tld = domain.split('.').pop().toLowerCase();
+  const whoisServer = await resolveWhoisServer(connect, tld);
+
+  if (!whoisServer) {
+    throw new Error(`Unable to resolve WHOIS server for .${tld}`);
+  }
+
+  let rawData = await queryWhoisServer(connect, whoisServer, domain);
+  rawData = rawData || '';
+  let bestRawData = rawData;
+  let bestScore = getWhoisDataScore(parseWhoisResult({ rawData }));
+
+  const referralServer = parseWhoisFieldFromRaw(rawData, ['Whois Server']);
+  if (referralServer && !sameWhoisServer(referralServer, whoisServer)) {
+    const referredData = await queryWhoisServer(connect, referralServer, domain);
+    if (referredData && referredData.trim()) {
+      const referredScore = getWhoisDataScore(parseWhoisResult({ rawData: referredData }));
+      if (referredScore >= bestScore) {
+        bestRawData = referredData;
+        bestScore = referredScore;
+      }
+    }
+  }
+
+  if (!bestRawData.trim()) {
+    throw new Error(`WHOIS response is empty from ${whoisServer}`);
+  }
+
+  return bestRawData;
+}
+
+function getWhoisConnect() {
+  if (typeof connect === 'function') {
+    return connect;
+  }
+  if (typeof globalThis.connect === 'function') {
+    return globalThis.connect;
+  }
+  throw new Error('TCP connect() API is unavailable in the current Worker runtime');
+}
+
+async function fetchWhoisRawDataViaWhoisXml(domain) {
+  if (!WHOISXML_API_KEY) {
+    throw new Error('WHOISXML_API_KEY is not configured');
+  }
+
+  const url = new URL('https://www.whoisxmlapi.com/whoisserver/WhoisService');
+  url.searchParams.set('apiKey', WHOISXML_API_KEY);
+  url.searchParams.set('domainName', domain);
+  url.searchParams.set('outputFormat', 'JSON');
+
+  const response = await fetch(url.toString(), {
+    headers: { 'Accept': 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`WHOISXML responded with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const errorMessage =
+    payload?.ErrorMessage?.msg ||
+    payload?.ErrorMessage?.errorMessage ||
+    payload?.errorMessage;
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+
+  const record = payload?.WhoisRecord || payload?.whoisRecord;
+  if (!record || typeof record !== 'object') {
+    throw new Error('WHOISXML returned empty WhoisRecord');
+  }
+
+  const rawText =
+    record.rawText ||
+    record?.registryData?.rawText ||
+    record?.audit?.rawText ||
+    '';
+
+  if (String(rawText).trim()) {
+    return String(rawText);
+  }
+
+  const structuredRecord = JSON.stringify(record);
+  if (structuredRecord && structuredRecord !== '{}') {
+    return structuredRecord;
+  }
+
+  const synthesized = synthesizeRawWhoisFromWhoisXml(record);
+  if (synthesized.trim()) {
+    return synthesized;
+  }
+
+  throw new Error('WHOISXML response did not include parsable WHOIS data');
+}
+
+async function fetchWhoisRawDataViaXyzRdap(domain) {
+  const response = await fetch(`https://rdap.centralnic.com/xyz/domain/${encodeURIComponent(domain)}`, {
+    headers: {
+      'Accept': 'application/rdap+json, application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`XYZ RDAP responded with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('XYZ RDAP returned empty payload');
+  }
+
+  return JSON.stringify(payload);
+}
+
+async function fetchWhoisRawDataViaRdapOrg(domain) {
+  const response = await fetch(`https://rdap.org/domain/${encodeURIComponent(domain)}`, {
+    headers: {
+      'Accept': 'application/rdap+json, application/json'
+    },
+    redirect: 'follow'
+  });
+
+  if (!response.ok) {
+    throw new Error(`RDAP.org responded with status ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('json')) {
+    throw new Error(`RDAP.org returned non-JSON payload (${contentType})`);
+  }
+
+  const payload = await response.json();
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('RDAP.org returned empty payload');
+  }
+
+  return JSON.stringify(payload);
+}
+
+async function fetchWhoisRawDataViaAuthoritativeRdap(domain) {
+  const tld = domain.split('.').pop().toLowerCase();
+  const rdapEndpointMap = {
+    in: 'https://rdap.nixiregistry.in/rdap/domain/',
+    org: 'https://rdap.publicinterestregistry.org/rdap/domain/'
+  };
+
+  const baseUrl = rdapEndpointMap[tld];
+  if (!baseUrl) {
+    throw new Error(`No authoritative RDAP endpoint configured for .${tld}`);
+  }
+
+  const response = await fetch(`${baseUrl}${encodeURIComponent(domain)}`, {
+    headers: {
+      'Accept': 'application/rdap+json, application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Authoritative RDAP responded with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Authoritative RDAP returned empty payload');
+  }
+
+  return JSON.stringify(payload);
+}
+
+async function fetchWhoisRawDataViaAliyunRdap(domain) {
+  const response = await fetch(`https://whois.aliyun.com/rdap/domain/${encodeURIComponent(domain)}`, {
+    headers: {
+      'Accept': 'application/rdap+json, application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Aliyun RDAP responded with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Aliyun RDAP returned empty payload');
+  }
+
+  return JSON.stringify(payload);
+}
+
+function synthesizeRawWhoisFromWhoisXml(record) {
+  const lines = [];
+  const domainName =
+    record.domainName ||
+    record?.registryData?.domainName ||
+    '';
+  const registrar =
+    record.registrarName ||
+    record.registrarIANAID ||
+    record?.registryData?.registrarName ||
+    '';
+  const created =
+    record.createdDateNormalized ||
+    record.createdDate ||
+    record?.registryData?.createdDateNormalized ||
+    record?.registryData?.createdDate ||
+    '';
+  const expires =
+    record.expiresDateNormalized ||
+    record.expiresDate ||
+    record?.registryData?.expiresDateNormalized ||
+    record?.registryData?.expiresDate ||
+    '';
+
+  if (domainName) lines.push(`Domain Name: ${domainName}`);
+  if (registrar) lines.push(`Registrar: ${registrar}`);
+  if (created) lines.push(`Creation Date: ${created}`);
+  if (expires) lines.push(`Registry Expiry Date: ${expires}`);
+
+  return lines.join('\n');
+}
+
+async function fetchWhoisRawDataViaProxy(domain) {
+  const response = await fetch(`${WHOIS_PROXY_URL}/whois/${domain}`);
+  const contentType = response.headers.get('content-type') || '';
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`WHOIS proxy responded with status ${response.status}`);
+  }
+
+  if (!responseText) {
+    throw new Error('WHOIS proxy returned empty response');
+  }
+
+  let proxyData = null;
+  try {
+    proxyData = JSON.parse(responseText);
+  } catch (error) {
+    proxyData = null;
+  }
+
+  if (proxyData && typeof proxyData === 'object') {
+    if (proxyData.error) {
+      throw new Error(proxyData.message || 'WHOIS proxy returned error');
+    }
+    if (proxyData.rawData && String(proxyData.rawData).trim()) {
+      return String(proxyData.rawData);
+    }
+  }
+
+  if (contentType.includes('text/plain') || responseText.includes('\n')) {
+    return responseText;
+  }
+
+  throw new Error(`WHOIS proxy returned unsupported payload (${contentType})`);
+}
+
+async function resolveWhoisServer(connect, tld) {
+  const staticMap = {
+    art: 'whois.nic.art',
+    blog: 'whois.nic.blog',
+    com: 'whois.verisign-grs.com',
+    cool: 'whois.nic.cool',
+    my: 'whois.mynic.my',
+    net: 'whois.verisign-grs.com',
+    org: 'whois.pir.org',
+    top: 'whois.nic.top',
+    xyz: 'whois.nic.xyz',
+    yoga: 'whois.nic.yoga'
+  };
+
+  if (staticMap[tld]) {
+    return staticMap[tld];
+  }
+
+  const ianaData = await queryWhoisServer(connect, 'whois.iana.org', tld);
+  const discovered = parseWhoisFieldFromRaw(ianaData, ['whois']);
+  return discovered || null;
+}
+
+async function queryWhoisServer(connect, hostname, query) {
+  const socket = connect({
+    hostname,
+    port: WHOIS_PORT
+  }, {
+    secureTransport: 'off'
+  });
+
+  const writer = socket.writable.getWriter();
+  const encoder = new TextEncoder();
+
+  try {
+    await withTimeout(
+      writer.write(encoder.encode(`${query}\r\n`)),
+      WHOIS_QUERY_TIMEOUT_MS,
+      `WHOIS write timeout (${hostname})`
+    );
+    await writer.close();
+
+    const rawData = await withTimeout(
+      readAllFromSocket(socket.readable),
+      WHOIS_QUERY_TIMEOUT_MS,
+      `WHOIS read timeout (${hostname})`
+    );
+    return rawData;
+  } finally {
+    try {
+      writer.releaseLock();
+    } catch (error) {
+      // ignore writer release errors
+    }
+    try {
+      await socket.close();
+    } catch (error) {
+      // ignore socket close errors
+    }
+  }
+}
+
+async function readAllFromSocket(readable) {
+  const reader = readable.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || !value.byteLength) continue;
+
+      total += value.byteLength;
+      if (total > WHOIS_MAX_RESPONSE_BYTES) {
+        throw new Error('WHOIS response too large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!chunks.length) return '';
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(merged);
+}
+
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function sameWhoisServer(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function parseWhoisResult(whoisData) {
+  const source = typeof whoisData === 'string'
+    ? { rawData: whoisData }
+    : (whoisData && typeof whoisData === 'object' ? whoisData : {});
+
+  const rawText =
+    normalizeWhoisValue(source.rawData) ||
+    normalizeWhoisValue(source.rawWhoisText) ||
+    normalizeWhoisValue(source.raw) ||
+    '';
+
+  const structuredRaw = parseStructuredWhoisPayload(rawText);
+  const structuredParsed = structuredRaw ? parseStructuredWhoisResult(structuredRaw) : null;
+
+  const registrarFromFields = getFirstWhoisValue(source, [
+    'registrar',
+    'registrarName',
+    'sponsoringRegistrar',
+    'registrar_name',
+    'Registrar'
+  ]);
+
+  const registrationDateFromFields = getFirstWhoisValue(source, [
+    'creationDate',
+    'createdDate',
+    'createdOn',
+    'creation_date',
+    'registeredOn',
+    'registrationDate'
+  ]);
+
+  const expirationDateFromFields = getFirstWhoisValue(source, [
+    'expirationDate',
+    'registryExpiryDate',
+    'registryExpirationDate',
+    'RegistryExpiryDate',
+    'RegistryExpirationDate',
+    'expiryDate',
+    'expiresDate',
+    'expireDate',
+    'expiration_date',
+    'paidTill'
+  ]);
+
+  const registrarFromRaw = parseWhoisFieldFromRaw(rawText, [
+    'Registrar',
+    'Sponsoring Registrar',
+    'Registrar Name'
+  ]);
+
+  const registrationDateFromRaw = parseWhoisFieldFromRaw(rawText, [
+    'Creation Date',
+    'Created Date',
+    'Created On',
+    'Registered On',
+    'created'
+  ]);
+
+  const expirationDateFromRaw = parseWhoisFieldFromRaw(rawText, [
+    'Registry Expiry Date',
+    'Registrar Registration Expiration Date',
+    'Expiration Date',
+    'Expiry Date',
+    'Expire Date',
+    'Expires On',
+    'Paid-till',
+    'expires'
+  ]);
+
+  return {
+    registrar: structuredParsed?.registrar || registrarFromFields || registrarFromRaw || 'Unknown',
+    registrationDate: formatDate(structuredParsed?.registrationDate || registrationDateFromFields || registrationDateFromRaw) || 'Unknown',
+    expirationDate: formatDate(structuredParsed?.expirationDate || expirationDateFromFields || expirationDateFromRaw) || 'Unknown'
+  };
+}
+
+function parseStructuredWhoisPayload(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    return null;
+  }
+
+  const trimmed = rawText.trim();
+  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseStructuredWhoisResult(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const registryData = payload?.registryData && typeof payload.registryData === 'object'
+    ? payload.registryData
+    : null;
+
+  const registrationDate =
+    extractWhoisEventDate(payload, ['registration', 'created', 'creation']) ||
+    getFirstWhoisValue(payload, ['createdDateNormalized', 'createdDate', 'creationDate', 'createdOn', 'registeredDate']) ||
+    getFirstWhoisValue(registryData, ['createdDateNormalized', 'createdDate', 'creationDate', 'createdOn', 'registeredDate']);
+
+  const expirationDate =
+    extractWhoisEventDate(payload, ['expiration', 'expiry', 'expires', 'registrar expiration']) ||
+    getFirstWhoisValue(payload, ['expiresDateNormalized', 'expiresDate', 'expirationDate', 'registryExpiryDate', 'registryExpirationDate']) ||
+    getFirstWhoisValue(registryData, ['expiresDateNormalized', 'expiresDate', 'expirationDate', 'registryExpiryDate', 'registryExpirationDate']);
+
+  return {
+    registrar: extractRegistrarFromStructuredWhois(payload) || extractRegistrarFromStructuredWhois(registryData),
+    registrationDate,
+    expirationDate
+  };
+}
+
+function extractRegistrarFromStructuredWhois(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const directRegistrar = getFirstWhoisValue(payload, [
+    'registrar',
+    'registrarName',
+    'sponsoringRegistrar',
+    'name'
+  ]);
+  if (directRegistrar) {
+    return directRegistrar;
+  }
+
+  const entities = Array.isArray(payload.entities) ? payload.entities : [];
+  for (const entity of entities) {
+    const roles = Array.isArray(entity?.roles) ? entity.roles.map(role => String(role).toLowerCase()) : [];
+    if (!roles.includes('registrar')) {
+      continue;
+    }
+
+    const vcardName = extractNameFromVcardArray(entity.vcardArray);
+    if (vcardName) {
+      return vcardName;
+    }
+
+    const entityName = getFirstWhoisValue(entity, ['fn', 'handle', 'name']);
+    if (entityName) {
+      return entityName;
+    }
+  }
+
+  return null;
+}
+
+function extractWhoisEventDate(payload, expectedActions) {
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const normalizedExpected = expectedActions.map(action => normalizeWhoisEventAction(action));
+
+  for (const event of events) {
+    const action = normalizeWhoisEventAction(event?.eventAction);
+    if (!action || !normalizedExpected.includes(action)) {
+      continue;
+    }
+
+    const eventDate = normalizeWhoisValue(event?.eventDate);
+    if (eventDate) {
+      return eventDate;
+    }
+  }
+
+  return null;
+}
+
+function normalizeWhoisEventAction(action) {
+  return String(action || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ');
+}
+
+function extractNameFromVcardArray(vcardArray) {
+  if (!Array.isArray(vcardArray) || !Array.isArray(vcardArray[1])) {
+    return null;
+  }
+
+  for (const entry of vcardArray[1]) {
+    if (!Array.isArray(entry) || entry.length < 4) {
+      continue;
+    }
+
+    if (entry[0] === 'fn' || entry[0] === 'org') {
+      const value = normalizeWhoisValue(entry[3]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getFirstWhoisValue(data, keys) {
+  if (!data || typeof data !== 'object') return null;
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      const normalized = normalizeWhoisValue(data[key]);
+      if (normalized) return normalized;
+    }
+  }
+
+  return null;
+}
+
+function normalizeWhoisValue(value) {
+  if (value === null || value === undefined) return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const normalizedItem = normalizeWhoisValue(item);
+      if (normalizedItem) return normalizedItem;
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'value')) {
+      return normalizeWhoisValue(value.value);
+    }
+    return null;
+  }
+
+  const text = String(value).trim();
+  return text || null;
+}
+
+function parseWhoisFieldFromRaw(rawData, fieldNames) {
+  if (!rawData || typeof rawData !== 'string' || !fieldNames || !fieldNames.length) {
+    return null;
+  }
+
+  const escapedNames = fieldNames.map(escapeRegExp);
+  const pattern = new RegExp(`(?:^|\\n)\\s*(?:${escapedNames.join('|')})\\s*:\\s*(.+)$`, 'im');
+  const match = rawData.match(pattern);
+
+  return match && match[1] ? match[1].trim() : null;
+}
+
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+}
 function formatDate(dateString) {
   if (!dateString) return null;
   const date = new Date(dateString);
   return isNaN(date.getTime()) ? dateString : date.toISOString().split('T')[0];
 }
 
-async function getCachedWhoisInfo(domain) {
+async function getCachedWhoisRecord(domain) {
   const cacheKey = `whois_${domain}`;
   const cachedData = await KV_NAMESPACE.get(cacheKey);
-  if (cachedData) {
-    try {
-      const { data, timestamp } = JSON.parse(cachedData);
-      // 检查是否有错误内容，如果有，删除它
-      if (data.whoisError) {
-        await KV_NAMESPACE.delete(cacheKey);
-        return null;
-      }
-      // 这里可以添加缓存过期检查，如果需要的话
-      return data;
-    } catch (error) {
-      console.error(`Error parsing cached data for ${domain}:`, error);
+  if (!cachedData) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(cachedData);
+    const record = normalizeWhoisCacheRecord(parsedValue);
+
+    if (!record || !record.data || typeof record.data !== 'object') {
       await KV_NAMESPACE.delete(cacheKey);
       return null;
     }
+
+    record.data = sanitizeWhoisInfo(record.data);
+    return record;
+  } catch (error) {
+    console.error(`Error parsing cached data for ${domain}:`, error);
+    await KV_NAMESPACE.delete(cacheKey);
+    return null;
   }
-  return null;
 }
 
+async function getCachedWhoisInfo(domain) {
+  const record = await getCachedWhoisRecord(domain);
+  return record ? record.data : null;
+}
+
+function extractCachedWhoisData(parsedCacheValue) {
+  const record = normalizeWhoisCacheRecord(parsedCacheValue);
+  if (!record || !record.data || typeof record.data !== 'object') {
+    return null;
+  }
+  return record.data;
+}
+
+function normalizeWhoisCacheRecord(parsedCacheValue) {
+  if (!parsedCacheValue || typeof parsedCacheValue !== 'object') {
+    return null;
+  }
+
+  if (parsedCacheValue.data && typeof parsedCacheValue.data === 'object') {
+    return {
+      data: parsedCacheValue.data,
+      timestamp: typeof parsedCacheValue.timestamp === 'number' ? parsedCacheValue.timestamp : null,
+      version: typeof parsedCacheValue.version === 'number' ? parsedCacheValue.version : null
+    };
+  }
+
+  // Backward compatibility for legacy cache shape: direct object without { data, timestamp, version }.
+  return {
+    data: parsedCacheValue,
+    timestamp: null,
+    version: null
+  };
+}
 async function cacheWhoisInfo(domain, whoisInfo) {
   const cacheKey = `whois_${domain}`;
+  const sanitizedInfo = sanitizeWhoisInfo(whoisInfo);
   await KV_NAMESPACE.put(cacheKey, JSON.stringify({
-    data: whoisInfo,
-    timestamp: Date.now()
+    data: sanitizedInfo,
+    timestamp: Date.now(),
+    version: WHOIS_CACHE_SCHEMA_VERSION
   }));
 }
 
+function isWhoisInfoCompletelyUnknown(data) {
+  if (!data || typeof data !== 'object') return false;
+
+  const registrarUnknown = !data.registrar || data.registrar === 'Unknown';
+  const registrationUnknown = !data.registrationDate || data.registrationDate === 'Unknown';
+  const expirationUnknown = !data.expirationDate || data.expirationDate === 'Unknown';
+
+  return registrarUnknown && registrationUnknown && expirationUnknown;
+}
+
+function hasCompleteWhoisData(data) {
+  if (!data || typeof data !== 'object') return false;
+  return (
+    data.registrar && data.registrar !== 'Unknown' &&
+    data.registrationDate && data.registrationDate !== 'Unknown' &&
+    data.expirationDate && data.expirationDate !== 'Unknown'
+  );
+}
+
+function sanitizeWhoisInfo(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+
+  const sanitized = { ...data };
+  if (sanitized.isCustom || !isTopLevelDomain(sanitized.domain)) {
+    delete sanitized.whoisError;
+    return sanitized;
+  }
+
+  if (hasCompleteWhoisData(sanitized)) {
+    delete sanitized.whoisError;
+  }
+
+  return sanitized;
+}
+
+function shouldRefreshWhoisCache(domainInfo, cachedRecord) {
+  if (!domainInfo || typeof domainInfo !== 'object') return false;
+  if (!domainInfo.domain) return false;
+  if (domainInfo.isCustom) return false;
+  if (!cachedRecord || !cachedRecord.data) return true;
+
+  const cachedData = cachedRecord.data;
+  const hasTimestamp = typeof cachedRecord.timestamp === 'number';
+  const ageMs = hasTimestamp ? Date.now() - cachedRecord.timestamp : null;
+  const isCurrentSchema = cachedRecord.version === WHOIS_CACHE_SCHEMA_VERSION;
+
+  if (!isCurrentSchema) {
+    return true;
+  }
+
+  if (!hasCompleteWhoisData(cachedData)) {
+    if (!cachedData.whoisError) {
+      return true;
+    }
+    if (!hasTimestamp) {
+      return true;
+    }
+    return ageMs > WHOIS_ERROR_RETRY_MS;
+  }
+
+  // Keep legacy complete records without timestamps to prevent accidental data loss.
+  if (!hasTimestamp) {
+    return false;
+  }
+
+  return ageMs > WHOIS_CACHE_TTL_MS;
+}
+
+function mergeWhoisInfoWithFallback(baseInfo, whoisInfo) {
+  const mergedInfo = { ...baseInfo };
+  if (!whoisInfo || typeof whoisInfo !== 'object') {
+    return sanitizeWhoisInfo(mergedInfo);
+  }
+
+  if (whoisInfo.registrar && whoisInfo.registrar !== 'Unknown') {
+    mergedInfo.registrar = whoisInfo.registrar;
+  }
+  if (whoisInfo.registrationDate && whoisInfo.registrationDate !== 'Unknown') {
+    mergedInfo.registrationDate = whoisInfo.registrationDate;
+  }
+  if (whoisInfo.expirationDate && whoisInfo.expirationDate !== 'Unknown') {
+    mergedInfo.expirationDate = whoisInfo.expirationDate;
+  }
+  if (whoisInfo.whoisLookupDomain) {
+    mergedInfo.whoisLookupDomain = whoisInfo.whoisLookupDomain;
+  }
+
+  if (whoisInfo.whoisError) {
+    mergedInfo.whoisError = whoisInfo.whoisError;
+  } else {
+    delete mergedInfo.whoisError;
+  }
+
+  return sanitizeWhoisInfo(mergedInfo);
+}
+
+function isTopLevelDomain(domain) {
+  if (!domain || typeof domain !== 'string') return false;
+  return domain.split('.').length === 2;
+}
 function generateLoginHTML(title, action, errorMessage = "") {
   return `
   <!DOCTYPE html>
@@ -702,19 +1586,6 @@ function generateLoginHTML(title, action, errorMessage = "") {
   `;
 }
 
-function getStatusColor(daysRemaining) {
-  if (daysRemaining === 'N/A' || daysRemaining <= 0) return '#e74c3c'; // 红色
-  if (daysRemaining <= 30) return '#f1c40f'; // 黄色
-  return '#2ecc71'; // 绿色
-}
-
-function getStatusTitle(daysRemaining) {
-  if (daysRemaining === 'N/A') return '无效的到期日期';
-  if (daysRemaining <= 0) return '已过期';
-  if (daysRemaining <= 30) return '即将过期';
-  return '正常';
-}
-
 function generateHTML(domains, isAdmin) {
   const categorizedDomains = categorizeDomains(domains);
   
@@ -725,13 +1596,22 @@ function generateHTML(domains, isAdmin) {
       return '';
     }
     return domainList.map(info => {
+      const normalizedInfo = sanitizeWhoisInfo(info);
+      const hasCompleteInfo = hasCompleteWhoisData(normalizedInfo);
+      const registrar = normalizedInfo.registrar || 'Unknown';
+      const registrationDateText = normalizedInfo.registrationDate || 'Unknown';
+      const expirationDateText = normalizedInfo.expirationDate || 'Unknown';
+      info = normalizedInfo;
       const today = new Date();
-      const expirationDate = new Date(info.expirationDate);
-      const daysRemaining = info.expirationDate === 'Unknown' ? 'N/A' : Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24));
-      const totalDays = info.registrationDate === 'Unknown' || info.expirationDate === 'Unknown' ? 'N/A' : Math.ceil((expirationDate - new Date(info.registrationDate)) / (1000 * 60 * 60 * 24));
+      const expirationDate = new Date(expirationDateText);
+      const registrationDate = new Date(registrationDateText);
+      const hasValidExpiry = expirationDateText !== 'Unknown' && !isNaN(expirationDate.getTime());
+      const hasValidRegistration = registrationDateText !== 'Unknown' && !isNaN(registrationDate.getTime());
+      const daysRemaining = hasValidExpiry ? Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24)) : 'N/A';
+      const totalDays = (hasValidRegistration && hasValidExpiry) ? Math.ceil((expirationDate - registrationDate) / (1000 * 60 * 60 * 24)) : 'N/A';
       const progressPercentage = isNaN(daysRemaining) || isNaN(totalDays) ? 0 : 100 - (daysRemaining / totalDays * 100);
-      const whoisErrorMessage = info.whoisError 
-        ? `<br><span style="color: red;">WHOIS错误: ${info.whoisError}</span><br><span style="color: blue;">建议：请检查域名状态或API配置</span>`
+      const whoisErrorMessage = (!hasCompleteInfo && normalizedInfo.whoisError)
+        ? `<br><span style="color: red;">WHOIS错误: ${normalizedInfo.whoisError}</span><br><span style="color: blue;">建议：请检查域名状态或API配置</span>`
         : '';
   
       let operationButtons = '';
@@ -760,9 +1640,9 @@ function generateHTML(domains, isAdmin) {
           <td class="status-column"><span class="status-dot" style="background-color: ${getStatusColor(daysRemaining)};" title="${getStatusTitle(daysRemaining)}"></span></td>
           <td class="domain-column" title="${info.domain}">${info.domain}</td>
           <td class="system-column" title="${info.system}">${info.system}</td>
-          <td class="registrar-column editable" title="${info.registrar}${whoisErrorMessage}">${info.registrar}${whoisErrorMessage}</td>
-          <td class="date-column editable" title="${info.registrationDate}">${info.registrationDate}</td>
-          <td class="date-column editable" title="${info.expirationDate}">${info.expirationDate}</td>
+          <td class="registrar-column editable" title="${registrar}${whoisErrorMessage}">${registrar}${whoisErrorMessage}</td>
+          <td class="date-column editable" title="${registrationDateText}">${registrationDateText}</td>
+          <td class="date-column editable" title="${expirationDateText}">${expirationDateText}</td>
           <td class="days-column" title="${daysRemaining}">${daysRemaining}</td>
           <td class="progress-column">
             <div class="progress-bar">
