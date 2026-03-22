@@ -1,46 +1,36 @@
 # DomainKeeper
 
-Closed-source domain management software built for Cloudflare Workers.
+DomainKeeper 是一款闭源的域名管理软件。
 
-## Public Repo Notice
+## 在线演示
 
-This GitHub repository is intentionally limited to public-facing documentation.
+- 演示地址：<https://ym.bacon123.eu.org/>
 
-- Proprietary source code is kept local only.
-- Activation, license, and tenant-isolation logic are not published.
-- Deployment internals and private configuration are not published.
+## 使用入口
 
-## Product Summary
+- 注册入口：<https://ym.bacon123.eu.org/register>
+- 登录入口：<https://ym.bacon123.eu.org/login>
 
-DomainKeeper is used to manage and display domain lifecycle data in a multi-user setup.
+注册成功后，每位用户都会拥有自己的专属访问地址：
 
-- Each user has an independent account.
-- Each username is also the route segment, such as `/{username}` and `/{username}/admin`.
-- Registration requires a valid activation code.
-- Each user has isolated domain data and isolated account configuration.
+- 前台：`/{用户名}`
+- 后台：`/{用户名}/admin`
 
-## Access
+## 激活码
 
-Production deployment:
+- 激活码购买地址：`[待补充]`
+- 激活码咨询方式：`[待补充]`
 
-- `https://domainkeeper.648558021.workers.dev`
+说明：
 
-Public entry points:
+- 注册时需要输入有效激活码
+- 一个用户名对应一个独立账户
 
-- `/login`
-- `/register`
+## 说明
 
-After activation and registration:
+- 本仓库仅用于公开展示说明
+- 软件源码与内部实现不公开
 
-- `/{username}`
-- `/{username}/admin`
+## Star History
 
-## Authorization
-
-If you need access, activation codes, or a private deployment, contact the software owner directly.
-
-## License
-
-All rights reserved.
-
-This software is closed source. No copying, redistribution, reverse engineering, or secondary hosting is permitted without explicit authorization.
+[![Star History Chart](https://api.star-history.com/svg?repos=ypq123456789/domainkeeper&type=Date)](https://star-history.com/#ypq123456789/domainkeeper&Date)
