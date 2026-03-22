@@ -8,7 +8,7 @@ DomainKeeper 是一款闭源域名管理软件。
 - 演示后台：https://ym.bacon123.eu.org/bacon/admin
 - 注册入口：https://ym.bacon123.eu.org/register
 - 登录入口：https://ym.bacon123.eu.org/login
-- 激活码购买地址：`[待补充]`
+- 激活码购买地址：https://fk.bacon123.eu.org/products/domainkeeper
 - 激活码咨询方式：`[待补充]`
 
 ## 演示预览
