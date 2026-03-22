@@ -1,17 +1,27 @@
 # DomainKeeper
 
-DomainKeeper 是一款闭源域名管理软件。
+DomainKeeper 是一款闭源域名管理产品。
 
-## 在线演示
+## 公开入口
 
-- 演示首页：https://ym.bacon123.eu.org/bacon
-- 演示后台：https://ym.bacon123.eu.org/bacon/admin
+- 产品首页：https://ym.bacon123.eu.org/
+- 使用文档：https://ym.bacon123.eu.org/docs
 - 注册入口：https://ym.bacon123.eu.org/register
 - 登录入口：https://ym.bacon123.eu.org/login
+- 前台演示：https://ym.bacon123.eu.org/bacon
+- 后台演示截图：https://ym.bacon123.eu.org/bacon/admin
 - 激活码购买地址：https://fk.bacon123.eu.org/products/domainkeeper
-- 激活码咨询方式：`[待补充]`
 
-## 演示预览
+## 产品亮点
+
+- 顶级域名、二级域名、自定义域名统一管理。
+- 支持排序、筛选、WHOIS 自动对接和手工补录。
+- 支持 Cloudflare 域名同步，也支持自定义维护。
+- 支持二级域名时间管理和监控到期时间。
+- 每个用户拥有独立用户名、独立路由和独立数据空间。
+- 前台默认可直接访问，客户也可以在后台设置是否要求前台登录。
+
+## 界面预览
 
 ### 前台效果
 
@@ -20,13 +30,6 @@ DomainKeeper 是一款闭源域名管理软件。
 ### 后台效果
 
 [![后台效果](demo-assets/bacon-admin-demo.png)](https://ym.bacon123.eu.org/bacon/admin)
-
-## 使用说明
-
-- 演示前台默认可直接访问，无需登录。
-- 用户后台地址格式为 `/{用户名}/admin`。
-- 新用户注册时需要输入有效激活码。
-- 是否要求前台登录，可由用户在自己的后台中自行设置。
 
 ## 说明
 
