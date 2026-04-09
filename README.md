@@ -17,6 +17,20 @@ DomainKeeper 是一款闭源域名管理产品。
 - 域名售卖米表演示：https://ym.bacon123.eu.org/test/market
 - 激活码购买地址：https://fk.bacon123.eu.org/products/domainkeeper
 
+## 界面预览
+
+### 前台效果
+
+[![前台效果](https://cdn.nodeimage.com/i/ay4Wr6ZCFssNfWmaL1EqGfeRMvYBnNFH.png)](https://ym.bacon123.eu.org/test)
+
+### 后台效果
+
+[![后台效果](https://cdn.nodeimage.com/i/ja5H7ayzVdvaQaNsWujT0nevBWRSsEF2.png)](https://ym.bacon123.eu.org/test/admin)
+
+### 米表效果
+
+[![米表效果](https://cdn.nodeimage.com/i/SKu56tSGtBm1OccK247eYwjkXYGr45JU.png)](https://ym.bacon123.eu.org/test/market)
+
 ## 路由说明
 
 假设你注册的用户名是 `abc`，系统会为你生成三条固定入口：
@@ -49,20 +63,6 @@ DomainKeeper 是一款闭源域名管理产品。
 - 域名是否允许点击跳转
 - 当前用户自己的 Cloudflare API Token
 - Cloudflare 域名同步与 WHOIS 补录
-
-## 界面预览
-
-### 前台效果
-
-[![前台效果](https://cdn.nodeimage.com/i/ay4Wr6ZCFssNfWmaL1EqGfeRMvYBnNFH.png)](https://ym.bacon123.eu.org/test)
-
-### 后台效果
-
-[![后台效果](https://cdn.nodeimage.com/i/ja5H7ayzVdvaQaNsWujT0nevBWRSsEF2.png)](https://ym.bacon123.eu.org/test/admin)
-
-### 米表效果
-
-[![米表效果](https://cdn.nodeimage.com/i/SKu56tSGtBm1OccK247eYwjkXYGr45JU.png)](https://ym.bacon123.eu.org/test/market)
 
 ## 说明
 
