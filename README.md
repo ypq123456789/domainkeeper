@@ -12,6 +12,7 @@ DomainKeeper 是一款闭源域名管理产品。
 - 使用文档：https://ym.bacon123.eu.org/docs
 - 注册入口：https://ym.bacon123.eu.org/register
 - 登录入口：https://ym.bacon123.eu.org/login
+- 忘记密码时可打开：https://ym.bacon123.eu.org/login?mode=reset
 - 前台演示：https://ym.bacon123.eu.org/test
 - 后台演示：https://ym.bacon123.eu.org/test/admin
 - 域名售卖米表演示：https://ym.bacon123.eu.org/test/market
@@ -21,15 +22,15 @@ DomainKeeper 是一款闭源域名管理产品。
 
 ### 前台效果
 
-[![前台效果](https://cdn.nodeimage.com/i/ay4Wr6ZCFssNfWmaL1EqGfeRMvYBnNFH.png)](https://ym.bacon123.eu.org/test)
+[![前台效果](https://cdn.nodeimage.com/i/ZDo4lTK2mfpCFQMAXp83b9DYOvxe1l4z.png)](https://ym.bacon123.eu.org/test)
 
 ### 后台效果
 
-[![后台效果](https://cdn.nodeimage.com/i/ja5H7ayzVdvaQaNsWujT0nevBWRSsEF2.png)](https://ym.bacon123.eu.org/test/admin)
+[![后台效果](https://cdn.nodeimage.com/i/Q9AEcOazu4f9u5hIAAruoWtYRU2bMCcY.png)](https://ym.bacon123.eu.org/test/admin)
 
 ### 米表效果
 
-[![米表效果](https://cdn.nodeimage.com/i/SKu56tSGtBm1OccK247eYwjkXYGr45JU.png)](https://ym.bacon123.eu.org/test/market)
+[![米表效果](https://cdn.nodeimage.com/i/YJaoOV5W6bXQe5XKfXT8K12w9MSnDeU6.png)](https://ym.bacon123.eu.org/test/market)
 
 ## 路由说明
 
@@ -44,7 +45,7 @@ DomainKeeper 是一款闭源域名管理产品。
 - 顶级域名、二级域名、自定义域名统一管理
 - 顶级和二级视图支持切换显示，注册日期、到期时间、剩余时间会同步切换
 - 支持表格排序、筛选、WHOIS 自动对接和手动补录
-- 支持 Cloudflare 域名同步
+- 支持 Cloudflare 域名同步，并在同步时自动刷新当前列表里的顶级域名 WHOIS
 - 前台、后台和公开米表默认读取最近一次同步快照；公开页面再配合短时缓存，打开更快
 - 默认排序仍然是“按剩余时间从少到多”，并支持在后台改成你自己的默认规则
 - 域名默认支持点击跳转访问，也支持在后台关闭点击跳转
@@ -63,6 +64,7 @@ DomainKeeper 是一款闭源域名管理产品。
 - 域名是否允许点击跳转
 - 当前用户自己的 Cloudflare API Token
 - Cloudflare 域名同步与 WHOIS 补录
+- 站内文档内置 Cloudflare API Token 图文教程，固定使用 Create Custom Token + Zone - Zone - Read + Include - All zones
 
 ## 说明
 
