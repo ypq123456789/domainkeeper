@@ -1,6 +1,6 @@
 # DomainKeeper
 
-[View Simplified Chinese README](./README.md)
+[简体中文 README / Simplified Chinese](./README.md)
 
 DomainKeeper is the English README for `域管家（DomainKeeper）`, a hosted domain management tool provided on `sanpin.ltd`.
 

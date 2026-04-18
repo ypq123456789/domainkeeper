@@ -1,6 +1,6 @@
 # 域管家（DomainKeeper）
 
-[查看英文版 README](./README.en.md)
+[English README / 英文版](./README.en.md)
 
 域管家（DomainKeeper）是 `sanpin.ltd` 提供的域名管理工具，用来统一整理 Cloudflare / DNSPod 同步、WHOIS、到期时间、售价和公开米表，并支持接入自有域名。
 
