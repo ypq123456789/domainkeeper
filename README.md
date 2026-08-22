@@ -134,6 +134,13 @@ GitHub README、官方站点和站内文档统一使用“域管家（DomainKeep
 - 软件源码、部署细节与内部实现不公开
 - 如果 README 里的文字、入口或预览图与线上不一致，请以官方站点和站内文档为准，我们会继续同步更新
 
+
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ypq123456789/domainkeeper&type=Date)](https://star-history.com/#ypq123456789/domainkeeper&Date)
+<a href="https://www.star-history.com/?type=date&repos=ypq123456789%2Fdomainkeeper">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&theme=dark&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
+ </picture>
+</a>
