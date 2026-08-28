@@ -38,15 +38,15 @@ GitHub README、官方站点和站内文档统一使用“域管家（DomainKeep
 
 ### 前台效果
 
-[![前台效果](https://cdn1.sanpin.ltd/frontend-demo-viewport.png?v=1.9.75)](https://sanpin.ltd/test)
+[![前台效果](https://cdn.nodeimage.com/i/gwy3oMNZQLHkTq2yoOhOErEKwgzvA3ut.png)](https://sanpin.ltd/test)
 
 ### 后台效果
 
-[![后台效果](https://cdn1.sanpin.ltd/admin-demo-viewport.png?v=1.9.75)](https://sanpin.ltd/test/admin)
+[![后台效果](https://cdn.nodeimage.com/i/xyBCjO8Kh2DPyRQjnlpNTAgocwCDAS9f.png)](https://sanpin.ltd/test/admin)
 
 ### 米表效果
 
-[![米表效果](https://cdn1.sanpin.ltd/market-demo-viewport.png?v=1.9.75)](https://sanpin.ltd/test/market)
+[![米表效果](https://cdn.nodeimage.com/i/DX4au6Zz25OMHbmMN76m6yxGtA3FZShL.png)](https://sanpin.ltd/test/market)
 
 ## 路由说明
 
@@ -88,9 +88,11 @@ GitHub README、官方站点和站内文档统一使用“域管家（DomainKeep
 - 后台支持按当前托管商直接管理 DNS 记录，支持新增、编辑、删除；A / AAAA / CNAME 记录会给出可直接点击的访问链接
 - 米表联系方式支持用空格分隔多个内容，并自动识别邮箱、手机号后生成可复制的联系方式卡片
 - 联系方式设置支持内置 `Email / WeChat / QQ / Phone` 字段，也支持追加自定义键值项，并兼容旧的自由文本联系方式
-- 账户设置支持 DNSHE `API Key / Secret` 和 DNSPod `Token`，这些平台侧域名都可以并入同一份域名快照
-- DNSHE 子域名同步会自动补齐对应一级域名 WHOIS；类型列表示当前唯一的 DNS 托管商，如果仍在 DNSHE 解析就显示 `DNSHE`，如果已经托管到 Cloudflare / DNSPod，就显示对应平台；识别到可直达的控制台地址后，点击类型可直接跳到对应平台 DNS 记录页
-- DNSHE 子域名同步会自动判断 180 天续期窗口：到窗口内就直接续期，未到窗口则按接口返回的剩余窗口天数反推当前二级域名到期时间
+- 账户设置里的“二级域名管理与续期”集中放置 DNSHE `API Key / Secret` 和 DigitalPlat `API Key`，这些平台侧域名都可以并入同一份域名快照
+- DNSHE / DigitalPlat 子域名同步会自动补齐对应一级域名 WHOIS；注册商列会优先显示真实二级注册商（例如 `DNSHE`、`DigitalPlat Domains`），官网入口也会跳到对应平台，而不是无脑沿用一级域名 WHOIS 注册商
+- 类型列表示当前唯一的 DNS 托管商，如果仍在 DNSHE / DigitalPlat 解析就显示对应平台，如果已经托管到 Cloudflare / DNSPod，就显示当前实际托管平台；识别到可直达的控制台地址后，点击类型可直接跳到对应平台 DNS 记录页
+- DNSHE 子域名可打开自动续期：定时任务进入 180 天续期窗口后会自动续期，并通过 TG 发送结果提醒
+- DigitalPlat 子域名只提供续期提醒：提前 90 天通过 TG 提醒客户，并附带 DigitalPlat Domains 官网地址，让客户自己手动续期；一年一次的续期不要求客户额外抓取 cookie 做自动化
 - 每个用户拥有独立用户名、独立路由和独立数据空间
 - 前台默认可直接访问，客户也可以在后台设置是否要求前台登录
 
@@ -106,7 +108,7 @@ GitHub README、官方站点和站内文档统一使用“域管家（DomainKeep
 - 域名是否允许点击跳转
 - 当前用户自己的 Cloudflare API Token
 - 当前用户自己的 DNSPod Token，界面分成 `Token ID` 和 `Token` 两个输入框，保存时仍按完整 `ID,Token` 使用
-- DNSHE API Key / Secret 和 DNSHE 子域名同步
+- DNSHE API Key / Secret、DigitalPlat API Key、二级域名同步与续期提醒开关
 - Cloudflare / DNSPod 域名同步与 WHOIS 补录
 - DNS 管理入口：按当前唯一托管商加载可编辑的解析记录
 - 托管切换入口：只对有注册商 API 的域名开放，当前会按注册商和目标平台的真实可用能力动态显示可切换目标
@@ -134,13 +136,6 @@ GitHub README、官方站点和站内文档统一使用“域管家（DomainKeep
 - 软件源码、部署细节与内部实现不公开
 - 如果 README 里的文字、入口或预览图与线上不一致，请以官方站点和站内文档为准，我们会继续同步更新
 
-
 ## Star History
 
-<a href="https://www.star-history.com/?type=date&repos=ypq123456789%2Fdomainkeeper">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&theme=dark&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ypq123456789/domainkeeper&type=date&legend=top-left&sealed_token=8a9iuEOBn93kkphD2fgVctG2_Djy5dmi2Uq11wuUREmEVuSaG21aDX_aL5anVPC-BBxInpNFvJjQYNWZ13CLvG13rcmntor1qEK3tsPZiNT1AzwSJ35Aaf8r0zuCeLanZABl5KclEiGieQDVB3fKq9J0XepZsRqPF422yePByRUViS1bZp6VfGWUHcZR" />
- </picture>
-</a>
+[![Star History Chart](https://api.star-history.com/svg?repos=ypq123456789/domainkeeper&type=Date)](https://star-history.com/#ypq123456789/domainkeeper&Date)
